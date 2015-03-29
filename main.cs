@@ -1,7 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Collections.Generic;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Mono.Cecil.Rocks;
@@ -9,7 +9,7 @@ using Mono.Cecil.Rocks;
 class MainClass {
 	static int Main(string[] args) {
 		if (args.Length == 0) {
-			System.Console.WriteLine("USAGE: main.exe [Assembly-CSharp-firstpass.dll]");
+			Console.WriteLine("USAGE: main.exe [Assembly-CSharp-firstpass.dll]");
 			return 1;
 		}
 
@@ -46,12 +46,10 @@ class MainClass {
 					fieldTypes.Add(cmd.FieldType.ToString());
 					fieldRet.Add("('" + s + "', '" + cmd.FieldType.ToString() + "')");
 				}
-				System.Console.WriteLine("class {0}:", type.ToString().Replace(".", "_"));
-				System.Console.WriteLine("\tID = {0}", id);
-				System.Console.WriteLine("\tfields = ({0})", string.Join(", ", fieldRet.ToArray()));
-				System.Console.WriteLine();
-				//System.Console.WriteLine();
-				//System.Console.WriteLine("[" + string.Join(", ", fieldTitleNames.ToArray()) + "]");
+				Console.WriteLine("class {0}:", type.ToString().Replace(".", "_"));
+				Console.WriteLine("\tID = {0}", id);
+				Console.WriteLine("\tfields = ({0})", string.Join(", ", fieldRet.ToArray()));
+				Console.WriteLine();
 				Console.Out.Flush();
 			}
 		}
