@@ -38,7 +38,6 @@ static class MainClass {
 					enumNode.Package = type.Namespace;
 					enumNode.Name = type.Name;
 				}
-				Console.WriteLine(enumNode.FullName);
 				using (var sw = new StringWriter()) {
 					sw.WriteLine("enum {0} {{", type.Name);
 
@@ -113,7 +112,6 @@ static class MainClass {
 						}
 						return string.Join("", parts) + "_";
 					});
-					Console.WriteLine("{1}{0}{1}", String.Join("\", \"", fieldNames), fieldNames.Length == 0 ? "" : "\"");
 					var messageNode = new PbufNode();
 					messageNode.Type = "message";
 					if (type.FullName.Contains("/Types/")) {
@@ -126,7 +124,6 @@ static class MainClass {
 						messageNode.Package = type.Namespace;
 						messageNode.Name = type.Name;
 					}
-					Console.WriteLine(messageNode.FullName);
 					using (var sw = new StringWriter()) {
 						sw.WriteLine("message {0} {{", type.Name);
 						var fakeStack = new Stack<object>();
@@ -356,8 +353,6 @@ static class MainClass {
 									if (!complex && defaults.ContainsKey(fieldField.Name) && defaults[fieldField.Name] != "\"\"") {
 										defaultStr = string.Format(" [default = {0}]", defaults[fieldField.Name]);
 									}
-									Console.WriteLine("{0} {1} {2} = {3}{4};", storage, protoKind,
-										fieldTagToName[fieldTag], fieldTag, defaultStr);
 									sw.WriteLine("\t{0} {1} {2} = {3}{4};", storage, protoKind,
 										fieldTagToName[fieldTag], fieldTag, defaultStr);
 								}
@@ -374,7 +369,6 @@ static class MainClass {
 						foreach (var extField in type.Fields.Where(
 							f => f.FieldType.Name.StartsWith("GeneratedExtension"))
 						) {
-							Console.WriteLine(extField);
 							var genArgs = (extField.FieldType as GenericInstanceType).GenericArguments;
 							var extendedType = genArgs[0];
 							var fieldType = genArgs[1];
@@ -385,7 +379,7 @@ static class MainClass {
 							}
 							var fieldNameCamel = extFieldName;
 
-							var fieldName = "";
+							var fieldName = "" + fieldNameCamel[0];
 							for (var i = 1; i < fieldNameCamel.Length; i++) {
 								if (char.IsUpper(fieldNameCamel[i])) {
 									fieldName += '_';
@@ -472,7 +466,6 @@ static class MainClass {
 		if (edges.Count != 0) {
 			throw new Exception("cyclic dependency");
 		}
-		Console.WriteLine(string.Join(", ", pbufNodes[457].Scopes));
 		// optimize the graph by grouping packages:
 		bool madeImprovement = false;
 		do { // pull up
@@ -553,18 +546,12 @@ static class MainClass {
 				}
 			}
 		} while (madeImprovement);
-		foreach (var node in topSorted) {
-			Console.WriteLine("{0}", node);
-		}
-
-		var packages = pbufNodes.Select(n => n.Package).Distinct().ToList();
 
 		var currPackage = "";
 		StringWriter currWriter = null;
 		HashSet<string> currExports = null;
 		HashSet<string> currImports = null;
 		var packageWriters = new Dictionary<string, List<StringWriter>>();
-		var packageWriterDeps = new Dictionary<string, List<List<string>>>();
 		var packageOrder = new List<string>();
 		var packageExports = new List<HashSet<string>>();
 		var packageImports = new List<HashSet<string>>();
