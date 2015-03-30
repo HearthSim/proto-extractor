@@ -9,8 +9,12 @@ using Mono.Cecil.Rocks;
 static class MainClass {
 	static int Main(string[] args) {
 		if (args.Length == 0) {
-			Console.WriteLine("USAGE: main.exe [Assembly-CSharp-firstpass.dll]");
+			Console.WriteLine("USAGE: main.exe [Assembly-CSharp-firstpass.dll] [output directory]");
 			return 1;
+		}
+		var outDir = ".";
+		if (args.Length > 1) {
+			outDir = args[1];
 		}
 
 		ModuleDefinition module;
@@ -639,10 +643,11 @@ static class MainClass {
 				buf = buf.Replace("<<IMPORTS HEADER>>", imports.ToString());
 			}
 
-			var dirName = Path.GetDirectoryName(currPath);
+			var fullPath = Path.Combine(outDir, currPath);
+			var dirName = Path.GetDirectoryName(fullPath);
 			if (!string.IsNullOrEmpty(dirName) && !Directory.Exists(dirName))
 				Directory.CreateDirectory(dirName);
-			File.WriteAllText(currPath, buf);
+			File.WriteAllText(fullPath, buf);
 		}
 		return 0;
 	}
