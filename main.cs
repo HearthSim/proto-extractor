@@ -43,13 +43,21 @@ static class MainClass {
 					enumNode.Name = type.Name;
 				}
 				using (var sw = new StringWriter()) {
+					var values = new HashSet<int>();
+					var aliases = false;
 					sw.WriteLine("enum {0} {{", type.Name);
 
 					foreach (var field in type.Fields) {
 						if (!field.HasConstant)
 							continue;
+						if (values.Contains((int)field.Constant)) {
+							aliases = true;
+						} else {
+							values.Add((int)field.Constant);
+						}
 						sw.WriteLine("\t{0} = {1};", field.Name, field.Constant);
 					}
+					if (aliases) sw.WriteLine("\toption allow_alias = true;");
 
 					sw.WriteLine("}");
 					enumNode.Content = sw.ToString();
