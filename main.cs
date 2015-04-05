@@ -575,6 +575,7 @@ static class MainClass {
 				}
 				packageWriters[currPackage].Add(currWriter);
 
+				currWriter.WriteLine("syntax = \"proto2\";");
 				currWriter.WriteLine("package {0};", currPackage);
 				currWriter.WriteLine("<<IMPORTS HEADER>>");
 				currWriter.WriteLine();
