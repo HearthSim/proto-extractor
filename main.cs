@@ -13,8 +13,12 @@ static class MainClass {
 			return 1;
 		}
 		var outDir = ".";
+		var flat = false;
 		if (args.Length > 1) {
 			outDir = args[1];
+		}
+		if (args.Length > 2) {
+			flat = args[2] == "flat";
 		}
 
 		ModuleDefinition module;
@@ -28,16 +32,18 @@ static class MainClass {
 		foreach (var type in module.GetAllTypes()) {
 			if (type.FullName.StartsWith("Google"))
 				continue;
+			if (type.FullName == "Wire")
+				continue;
 
 			if (type.IsEnum) {
 				var enumNode = new PbufNode();
 				enumNode.Type = "enum";
-				if (type.FullName.Contains("/Types/")) {
+				if (type.FullName.Contains("/")) {
 					var parentType = type.DeclaringType;
 					while (string.IsNullOrEmpty(parentType.Namespace))
 						parentType = parentType.DeclaringType;
 					enumNode.Package = parentType.Namespace;
-					enumNode.Name = type.FullName.Substring(1 + enumNode.Package.Length).Replace("/Types/", ".");
+					enumNode.Name = type.FullName.Substring(1 + enumNode.Package.Length).Replace("/Types/", ".").Replace("/", ".");
 				} else {
 					enumNode.Package = type.Namespace;
 					enumNode.Name = type.Name;
@@ -64,74 +70,15 @@ static class MainClass {
 				}
 				pbufNodes.Add(enumNode);
 			} else if (type.IsClass && type.BaseType != null) {
-				if (type.BaseType.Name == "GeneratedMessageLite`2" ||
-					type.BaseType.Name == "ExtendableMessageLite`2") {
-
-					string[] fieldNames = null;
-					int[] fieldTags = null;
-					{
-						var cctor = type.Methods.First(m => m.Name == ".cctor");
-						var fakeStack = new Stack<object>();
-						string currKind = null;
-						cctor.Body.SimplifyMacros();
-						foreach (var ins in cctor.Body.Instructions) {
-							switch (ins.OpCode.Code) {
-							case Code.Ldstr:
-							case Code.Ldc_I4:
-							case Code.Ldtoken:
-								fakeStack.Push(ins.Operand);
-								break;
-							case Code.Newarr:
-								var len = (int)fakeStack.Pop();
-								currKind = (ins.Operand as TypeReference).Name;
-								if (currKind == "String") {
-									fieldNames = new string[len];
-								} else {
-									fieldTags = new int[len];
-								}
-								break;
-							case Code.Stelem_I4:
-							case Code.Stelem_Ref:
-								var value = fakeStack.Pop();
-								var idx = (int)fakeStack.Pop();
-								if (currKind == "String") {
-									fieldNames[idx] = (string)value;
-								} else {
-									fieldTags[idx] = (int)value;
-								}
-								break;
-							case Code.Call:
-								if ((ins.Operand as MethodReference).Name == "InitializeArray") {
-									if (currKind != "UInt32") {
-										throw new Exception("Unknown InitializeArray type");
-									}
-									var token = fakeStack.Pop() as FieldDefinition;
-									using (var br = new BinaryReader(new MemoryStream(token.InitialValue))) {
-										for (var i = 0; i < fieldTags.Length; i++) {
-											fieldTags[i] = br.ReadInt32();
-										}
-									}
-								}
-								break;
-							}
-						}
-					}
-					var fieldTagToName = fieldTags.Zip(fieldNames, (a, b) => new KeyValuePair<int, string>(a >> 3, b)).ToDictionary(p => p.Key, p => p.Value);
-					var fieldTagToFieldName = fieldTagToName.ToDictionary(p => p.Key, p => {
-						var parts = p.Value.Split('_').ToArray();
-						for (var i = 1; i < parts.Length; i++) {
-							parts[i] = parts[i].Substring(0, 1).ToUpper() + parts[i].Substring(1);
-						}
-						return string.Join("", parts) + "_";
-					});
+				if (type.Interfaces.Any(i => i.Name == "IProtoBuf")) {
 					var messageNode = new PbufNode();
 					messageNode.Type = "message";
-					if (type.FullName.Contains("/Types/")) {
+					if (type.FullName.Contains("/")) {
 						var parentType = type.DeclaringType;
 						while (string.IsNullOrEmpty(parentType.Namespace))
 							parentType = parentType.DeclaringType;
 						messageNode.Package = parentType.Namespace;
-						messageNode.Name = type.FullName.Substring(1 + messageNode.Package.Length).Replace("/Types/", ".");
+						messageNode.Name = type.FullName.Substring(1 + messageNode.Package.Length).Replace("/Types/", ".").Replace("/", ".");
 					} else {
 						messageNode.Package = type.Namespace;
 						messageNode.Name = type.Name;
@@ -140,11 +87,13 @@ static class MainClass {
 						sw.WriteLine("message {0} {{", type.Name);
 						var fakeStack = new Stack<object>();
 						// walk the constructor for default values:
-						var ctor = type.Methods.First(f => f.Name == ".ctor");
+						var ctor = type.Methods.First(f => f.Name == "Deserialize" && f.Parameters.Count >= 3);
 						ctor.Body.SimplifyMacros();
 						// field name => stringified default value
 						var defaults = new Dictionary<string, string>();
+						bool done = false;
 						foreach (var ins in ctor.Body.Instructions) {
+							if (done) break;
 							object thisArg = null;
 							switch (ins.OpCode.Code) {
 							case Code.Ldc_I4:
@@ -169,6 +118,10 @@ static class MainClass {
 								break;
 							case Code.Ldarg:
 								var paramI = (ins.Operand as ParameterReference).Index;
+								if (paramI == 2) {
+									done = true;
+									break;
+								}
 								fakeStack.Push(paramI == -1 ? "this" : string.Format("arg{0}", paramI));
 								break;
 							case Code.Ldsfld:
@@ -185,6 +138,7 @@ static class MainClass {
 							case Code.Call:
 							case Code.Callvirt:
 								var mr = ins.Operand as MethodReference;
+								var md = mr as MethodDefinition;
 								var argCount = mr.Parameters.Count;
 								var argArr = new object[argCount];
 								for (var i = argCount - 1; i >= 0; i--) {
@@ -193,18 +147,26 @@ static class MainClass {
 								if (mr.HasThis) {
 									thisArg = fakeStack.Pop();
 								}
+								if (md.SemanticsAttributes.HasFlag(MethodSemanticsAttributes.Setter)) {
+									defaults[mr.Name.Substring(4).ToLowerUnderscore()] = argArr[0].ToString();
+								}
 								fakeStack.Push(string.Format("{0}{1}({2})", mr.HasThis ? thisArg.ToString() + "." : "", mr.Name, string.Join(", ", argArr)));
+								break;
+							default:
 								break;
 							}
 						}
 
 						// clear stack
 						fakeStack = new Stack<object>();
-						// walk WriteTo for the remaining field information
+						// walk Serialize for the remaining field information
 						bool inBranch = false;
 						string branchedOn = null;
 						Instruction branchedUntil = null;
-						var writer = type.Methods.First(m => m.Name == "WriteTo");
+						var writer = type.Methods.First(m => m.Name == "Serialize" && m.Parameters.Count >= 2);
+						var fieldTag = 0;
+						var isMessage = false;
+						var isRepeatedUint = false;
 						writer.Body.SimplifyMacros();
 						foreach (var ins in writer.Body.Instructions) {
 							if (ins == branchedUntil) {
@@ -257,116 +219,191 @@ static class MainClass {
 									thisArg = fakeStack.Pop();
 								}
 								fakeStack.Push(string.Format("{0}{1}({2})", mr.HasThis ? thisArg.ToString() + "." : "", mr.Name, string.Join(", ", argArr)));
-								if (argCount > 0 && (string)thisArg == "arg0" &&
-									mr.DeclaringType.Name == "ICodedOutputStream" &&
-									mr.Name.StartsWith("Write")) {
-
-									var fieldTag = (int)argArr[0];
-									var fieldField = type.Fields.First(f => f.Name == fieldTagToFieldName[fieldTag]);
-									var kind = mr.Name.Substring(5);
-									bool optional = inBranch && branchedOn.StartsWith("this.has");
-									bool repeated = inBranch && branchedOn.Contains(".get_Count()");
-									bool complex = false;
-									var storage = "required";
-									if (optional) {
-										storage = "optional";
-									} else if (repeated) {
-										storage = "repeated";
-									}
-									var defaultStr = "";
-									var protoKind = kind;
-									switch (kind) {
-									case "Fixed32":
-										protoKind = "fixed32";
-										break;
-									case "Fixed64":
-										protoKind = "fixed64";
-										break;
-									case "Float":
-										protoKind = "float";
-										break;
-									case "Double":
-										protoKind = "double";
-										break;
-									case "Int32":
-										protoKind = "int32";
-										break;
-									case "Int64":
-										protoKind = "int64";
-										break;
-									case "UInt32":
-										protoKind = "uint32";
-										break;
-									case "UInt64":
-										protoKind = "uint64";
-										break;
-									case "Bool":
-										protoKind = "bool";
-										if (defaults.ContainsKey(fieldField.Name)) {
-											defaults[fieldField.Name] = defaults[fieldField.Name] == "0" ? "false" : "true";
+								if (argCount > 0) {
+									if ((mr.DeclaringType.Name == "ProtocolParser" &&
+										mr.Name.StartsWith("Write"))||
+										(mr.Name == "Serialize" && isMessage) ||
+										mr.DeclaringType.Name == "BinaryWriter") {
+										string arg1 = "";
+										if (argArr.Length > 1) {
+											arg1 = argArr[1].ToString();
 										}
-										break;
-									case "String":
-										protoKind = "string";
-										break;
-									case "Enum":
-										protoKind = "." + fieldField.FieldType.FullName.Replace("/Types/", ".");
-										messageNode.DependencyNames.Add(protoKind);
-										if (defaults.ContainsKey(fieldField.Name)) {
-											var constVal = Int32.Parse(defaults[fieldField.Name]);
-											var constName = fieldField.FieldType.Resolve().Fields.First(f => f.HasConstant && constVal == (int)f.Constant).Name;
-											defaults[fieldField.Name] = constName;
+										if (arg1.EndsWith("GetSerializedSize()")) {
+											isMessage = true;
+											break;
 										}
-										break;
-									case "Message":
-										complex = true;
-										protoKind = "." +  fieldField.FieldType.FullName.Replace("/Types/", ".");
-										messageNode.DependencyNames.Add(protoKind);
-										break;
-									case "MessageArray":
-										complex = true;
-										protoKind = "." + (fieldField.FieldType as GenericInstanceType).GenericArguments[0].FullName.Replace("/Types/", ".");
-										messageNode.DependencyNames.Add(protoKind);
-										break;
-									case "StringArray":
-										complex = true;
-										protoKind = "string";
-										break;
-									case "BoolArray":
-										complex = true;
-										protoKind = "bool";
-										break;
-									case "Bytes":
-										complex = true;
-										protoKind = "bytes";
-										break;
-									case "PackedFixed32Array":
-									case "Fixed32Array":
-										complex = true;
-										protoKind = "fixed32";
-										break;
-									case "PackedInt32Array":
-									case "Int32Array":
-										complex = true;
-										protoKind = "int32";
-										break;
-									case "PackedUInt32Array":
-									case "UInt32Array":
-										complex = true;
-										protoKind = "uint32";
-										break;
-									case "UInt64Array":
-										complex = true;
-										protoKind = "uint64";
-										break;
-									default:
-										throw new Exception(string.Format("kind must be handled: {0}", kind));
+										else if (mr.Name != "Serialize") {
+											isMessage = false;
+										}
+										bool optional = inBranch && branchedOn.StartsWith("arg1.Has");
+										bool repeated = inBranch && branchedOn.Contains(".get_Count()");
+										bool complex = false;
+										var storage = "required";
+										if (optional) {
+											storage = "optional";
+										}
+										else if (repeated) {
+											storage = "repeated";
+										}
+										string fieldName = null;
+										if (arg1.StartsWith("arg1")) {
+											if (arg1.Contains("get_Count()")) {
+												break;
+											}
+											fieldName = arg1.Substring(5).Replace("()", "");
+										}
+										else if (repeated) {
+											var enumDepth = 2;
+											var stack = fakeStack.ToList();
+											if (isMessage) enumDepth++;
+											if (isRepeatedUint) {
+												enumDepth--;
+												isRepeatedUint = false;
+											}
+											else if (fieldTag >= 0x10) enumDepth++;
+											var enumCall = stack[enumDepth].ToString();
+											if (enumCall.Contains("GetEnumerator")) {
+												fieldName = enumCall.Substring(5);
+												fieldName = fieldName.Substring(0, fieldName.IndexOf("("));
+											} else if (stack[2].ToString().StartsWith("SizeOfUInt32") && stack[4].ToString().Contains("GetEnumerator")) {
+												isRepeatedUint = true;
+												break;
+											} else if (stack[2].ToString().StartsWith("SizeOfUInt64") && stack[4].ToString().Contains("GetEnumerator")) {
+												isRepeatedUint = true;
+												break;
+											} else if (mr.DeclaringType.Name == "BinaryWriter") {
+												fieldName = stack[1].ToString().Substring(5);
+												fieldName = fieldName.Substring(0, fieldName.IndexOf("("));
+											} else {
+												throw new Exception();
+											}
+										}
+										else if (arg1.Contains("get_UTF8")) {
+											fieldName = arg1.Substring(25);
+											fieldName = fieldName.Substring(0, fieldName.Length - 3);
+										}
+										else if (mr.DeclaringType.Name == "BinaryWriter") {
+											fieldName = argArr[0].ToString().Substring(5).Replace("()", "");
+										} else {
+											throw new Exception();
+										}
+										var getter = type.Methods.First(m => m.Name == fieldName);
+										fieldName = fieldName.Substring(4).ToLowerUnderscore();
+										string protoKind = null;
+										if (isMessage) {
+											var messageType = getter.ReturnType;
+											if (repeated) {
+												messageType = ((Mono.Cecil.GenericInstanceType)messageType).GenericArguments[0];
+											}
+											protoKind = "." + messageType.FullName.Replace("/Types/", ".").Replace("/", ".");
+											Console.WriteLine(protoKind);
+											messageNode.DependencyNames.Add(protoKind);
+											sw.WriteLine("\t{0} {1} {2} = {3};", storage, protoKind,
+												fieldName, fieldTag);
+											fieldTag = 0;
+											isMessage = false;
+											break;
+										}
+										var fieldType = getter.ReturnType;
+										var kind = fieldType.Name;
+										var defaultStr = "";
+										protoKind = kind;
+										if (kind == "List`1") {
+											if (!repeated) throw new Exception();
+											var subType = ((Mono.Cecil.GenericInstanceType)fieldType).GenericArguments[0];
+											kind = subType.Name;
+										}
+										if (!fieldType.Namespace.StartsWith("System")) {
+											kind = "Enum";
+										}
+										if (mr.DeclaringType.Name == "BinaryWriter") {
+											switch (mr.Parameters[0].ParameterType.Name) {
+											case "UInt32":
+												protoKind = "fixed32";
+												break;
+											case "UInt64":
+												protoKind = "fixed64";
+												break;
+											case "Single":
+												protoKind = "float";
+												break;
+											case "Double":
+												protoKind = "double";
+												break;
+											default:
+												throw new Exception();
+											}
+										} else {
+											switch (kind) {
+											case "UInt32":
+												protoKind = "uint32";
+												break;
+											case "UInt64":
+												protoKind = "uint64";
+												break;
+											case "Single":
+												protoKind = "float";
+												break;
+											case "Double":
+												protoKind = "double";
+												break;
+											case "Int32":
+												protoKind = "int32";
+												break;
+											case "Int64":
+												protoKind = "int64";
+												break;
+											case "Boolean":
+												protoKind = "bool";
+												if (defaults.ContainsKey(fieldName)) {
+													defaults[fieldName] = defaults[fieldName] == "0" ? "false" : "true";
+												}
+												break;
+											case "String":
+												protoKind = "string";
+												break;
+											case "Enum":
+												protoKind = "." + getter.ReturnType.FullName.Replace("/Types/", ".").Replace("/", ".");
+												messageNode.DependencyNames.Add(protoKind);
+												if (defaults.ContainsKey(fieldName))
+												{
+													var constVal = Int32.Parse(defaults[fieldName]);
+													var constName = getter.ReturnType.Resolve().Fields.First(f => f.HasConstant && constVal == (int)f.Constant).Name;
+													defaults[fieldName] = constName;
+												}
+												break;
+											case "Byte[]":
+												complex = true;
+												protoKind = "bytes";
+												break;
+											default:
+												throw new Exception(string.Format("kind must be handled: {0}", kind));
+											}
+										}
+										if (repeated) complex = true;
+										if (!complex && defaults.ContainsKey(fieldName) && defaults[fieldName] != "\"\"") {
+											if (protoKind == "string") {
+												if (string.IsNullOrEmpty(defaults[fieldName])) {
+													defaults[fieldName] = "\"\"";
+												} else {
+													defaults[fieldName] = string.Format("\"{0}\"", defaults[fieldName]);
+												}
+											}
+											defaultStr = string.Format(" [default = {0}]", defaults[fieldName]);
+										}
+										sw.WriteLine("\t{0} {1} {2} = {3}{4};", storage, protoKind,
+											fieldName, fieldTag, defaultStr);
+										fieldTag = 0;
 									}
-									if (!complex && defaults.ContainsKey(fieldField.Name) && defaults[fieldField.Name] != "\"\"") {
-										defaultStr = string.Format(" [default = {0}]", defaults[fieldField.Name]);
+									else if (mr.DeclaringType.Name == "Stream") {
+										if (fieldTag != 0) {
+											fieldTag &= 0x7f;
+											fieldTag |= (int)argArr[0] << 4;
+										} else {
+											fieldTag = (int)argArr[0] >> 3;
+											// fieldWireType = (int)argArr[0] & 7;
+										}
 									}
-									sw.WriteLine("\t{0} {1} {2} = {3}{4};", storage, protoKind,
-										fieldTagToName[fieldTag], fieldTag, defaultStr);
 								}
 								break;
 							}
@@ -402,7 +439,7 @@ static class MainClass {
 							// note: repeated is possible, but not found currently.
 							var storage = "optional";
 							var protoKind = fieldType.FullName.Replace("/Types/", ".");
-							var fieldTag = type.Fields.First(f => f.Name.StartsWith(extFieldName) && f.Name.EndsWith("FieldNumber")).Constant;
+							fieldTag = (int)type.Fields.First(f => f.Name.StartsWith(extFieldName) && f.Name.EndsWith("FieldNumber")).Constant;
 							if (!extensions.ContainsKey(extendee)) {
 								extensions[extendee] = new List<string>();
 								messageNode.DependencyNames.Add(extendee);
@@ -423,6 +460,37 @@ static class MainClass {
 					}
 					pbufNodes.Add(messageNode);
 				}
+			}
+		}
+		// flatten to a single package if requested
+		if (flat) {
+			// Slowish
+			var qnames = new Dictionary<string, string>();
+			var qnamekeys = new List<string>();
+			foreach (var node in pbufNodes) {
+				var newName = ".hsproto." + node.Package.Replace(".", "_") + "_" + node.Name;
+				qnames.Add(node.FullName, newName);
+				qnamekeys.Add(node.FullName);
+			}
+			// Longest first
+			qnamekeys.Sort((a, b) => b.Length.CompareTo(a.Length));
+			foreach (var node in pbufNodes) {
+				var oldName = node.Name;
+				node.Name = node.Package.Replace(".", "_") + "_" + oldName;
+				node.Package = "hsproto";
+				node.Content = node.Content.Replace(" " + oldName, " " + node.Name);
+				foreach (var key in qnamekeys) {
+					node.Content = node.Content.Replace(key, qnames[key]);
+				}
+				node.DependencyNames = node.DependencyNames.Select(s => {
+					foreach (var key in qnamekeys) {
+						if (key == s)
+						{
+							return qnames[key];
+						}
+					}
+					throw new Exception();
+				}).ToList();
 			}
 		}
 
@@ -476,7 +544,7 @@ static class MainClass {
 			}
 		}
 		if (edges.Count != 0) {
-			throw new Exception("cyclic dependency");
+			// throw new Exception("cyclic dependency"); -- this actually just doesn't matter
 		}
 		// optimize the graph by grouping packages:
 		bool madeImprovement = false;
@@ -695,5 +763,19 @@ static class MainClass {
 		{
 			return FullName.GetHashCode();
 		}
+	}
+}
+
+static class Extensions {
+	public static string ToLowerUnderscore(this string s) {
+		var res = "";
+		for (var i = 0; i < s.Length; i++) {
+			if (s[i] >= 'A' && s[i] < 'a' && i != 0)
+			{
+				res += "_";
+			}
+			res += s[i].ToString().ToLower();
+		}
+		return res.TrimEnd('_');
 	}
 }
