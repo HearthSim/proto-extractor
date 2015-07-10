@@ -550,7 +550,15 @@ static class MainClass {
 			}
 		}
 		if (edges.Count != 0) {
-			// throw new Exception("cyclic dependency"); -- this actually just doesn't matter
+			// solve cyclic depedency by adding missing nodes at the bottom
+			foreach (var edge in edges) {
+				if (!topSorted.Contains(pbufNodes[edge.Item1])) {
+					topSorted.Add(pbufNodes[edge.Item1]);
+				}
+				if (!topSorted.Contains(pbufNodes[edge.Item2])) {
+					topSorted.Add(pbufNodes[edge.Item2]);
+				}
+			}
 		}
 		// optimize the graph by grouping packages:
 		bool madeImprovement = false;
