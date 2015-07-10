@@ -28,7 +28,7 @@ static class MainClass {
 		}
 
 		var pbufNodes = new List<PbufNode>();
-
+		var basicNumericTypes = new string[] {"uint32", "uint64", "float", "double", "int32", "int64"};
 		foreach (var type in module.GetAllTypes()) {
 			if (type.FullName.StartsWith("Google"))
 				continue;
@@ -380,7 +380,13 @@ static class MainClass {
 												throw new Exception(string.Format("kind must be handled: {0}", kind));
 											}
 										}
-										if (repeated) complex = true;
+										string packedStr = "";
+										if (repeated) {
+											complex = true;
+											if (basicNumericTypes.Contains(protoKind)) {
+												packedStr = " [packed = true]";
+											}
+										}
 										if (!complex && defaults.ContainsKey(fieldName) && defaults[fieldName] != "\"\"") {
 											if (protoKind == "string") {
 												if (string.IsNullOrEmpty(defaults[fieldName])) {
@@ -391,8 +397,8 @@ static class MainClass {
 											}
 											defaultStr = string.Format(" [default = {0}]", defaults[fieldName]);
 										}
-										sw.WriteLine("\t{0} {1} {2} = {3}{4};", storage, protoKind,
-											fieldName, fieldTag, defaultStr);
+										sw.WriteLine("\t{0} {1} {2} = {3}{4}{5};", storage, protoKind,
+											fieldName, fieldTag, packedStr, defaultStr);
 										fieldTag = 0;
 									}
 									else if (mr.DeclaringType.Name == "Stream") {
