@@ -247,7 +247,7 @@ static class MainClass {
 										}
 										string fieldName = null;
 										if (arg1.StartsWith("arg1")) {
-											if (arg1.Contains("get_Count()")) {
+											if (arg1.Contains("get_Count()") && arg1.Substring(5).Contains(".")) {
 												break;
 											}
 											fieldName = arg1.Substring(5).Replace("()", "");
