@@ -43,5 +43,6 @@
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <ItemGroup>
     <Compile Include="extractor.cs" />
+    <Compile Include="protobuf.cs" />
   </ItemGroup>
 </Project>
