@@ -403,7 +403,7 @@ static class MainClass {
 									}
 									else if (mr.DeclaringType.Name == "Stream") {
 										if (fieldTag != 0) {
-											fieldTag &= 0x7f;
+											fieldTag &= 0xf;
 											fieldTag |= (int)argArr[0] << 4;
 										} else {
 											fieldTag = (int)argArr[0] >> 3;
