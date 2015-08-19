@@ -56,7 +56,7 @@ class SilentOrbitTypeProcessor : TypeProcessor {
 	public override void Process(TypeDefinition type) {
 		// Since a protobuf package corresponds to a C# namespaces, no generated
 		// protobuf classes exist in the root namespace.
-		if (type.Namespace.Length == 0) {
+		if (type.PackageName().Package.Length == 0) {
 			return;
 		}
 
@@ -84,24 +84,186 @@ class SilentOrbitTypeProcessor : TypeProcessor {
 	void ProcessMessage(TypeDefinition type) {
 		var package = type.Namespace;
 		var result = new MessageNode(type.Name);
+		if (type.Name == "IncrementChannelCountResponse") {
+			Console.WriteLine();
+		}
+		var defaults = new Dictionary<string, string>();
 		var deserializeWalker = new MethodWalker(type.Methods.First(m =>
 			m.Name == "Deserialize" && m.Parameters.Count == 3));
-		deserializeWalker.OnStore = store => {
-			Console.WriteLine("store: {0} = {1}",
-				store.Field.Name, store.Argument);
-		};
 		deserializeWalker.OnCall = info => {
-			Console.WriteLine("call: {0}\nconditions: {1}", info.String, String.Join(", ", info.Conditions));
+			if (info.Conditions.Count == 0 && info.Method.Name.StartsWith("set_")) {
+				var fieldName = info.Method.Name.Substring(4).ToLowerUnder();
+				var val = info.Arguments[1].ToString();
+				if (val.EndsWith("String::Empty")) {
+					val = "\"\"";
+				} else if (info.Arguments[1].GetType() == typeof(string)) {
+					val = "\"" + val.Replace("\"", "\\\"") + "\"";
+				}
+				defaults[fieldName] = val;
+			}
 		};
 		deserializeWalker.Walk();
+
+		var written = new List<byte>();
 		var serializeWalker = new MethodWalker(type.Methods.First(m =>
 			m.Name == "Serialize" && m.Parameters.Count == 2));
-		serializeWalker.OnStore = store => {
-			Console.WriteLine("store: {0} = {1}",
-				store.Field.Name, store.Argument);
-		};
 		serializeWalker.OnCall = info => {
-			Console.WriteLine("call: {0}\nconditions: {1}", info.String, String.Join(", ", info.Conditions));
+			if (info.Method.Name == "WriteByte") {
+				written.Add((byte)(int)info.Arguments[1]);
+				return;
+			}
+			if (info.Arguments.Any(x => x.ToString().Contains("GetSerializedSize()"))) {
+				return;
+			}
+			if (!info.Method.Name.StartsWith("Write") && info.Method.Name != "Serialize") {
+				return;
+			}
+
+			// !!! packed vs not packed:
+			// bnet.protocol.channel_invitation.IncrementChannelCountResponse/reservation_tokens: *not* packed
+			// PegasusGame.ChooseEntities/entities: *packed*
+			// not packed = {{tag, data}, {tag, data}, ...}
+			// packed = {tag, size, data}
+			// repeated fixed fields are packed by default.
+			//
+			// not packed:
+			//   call: ProtocolParser.WriteUInt64(arg0, V_0)
+			//   conditions: arg1.get_ReservationTokens().get_Count() > 0, &V_1.MoveNext() == true
+			//
+			// packed:
+			//   call: ProtocolParser.WriteUInt32(arg0, V_0) // size
+			//   conditions: arg1.get_Entities().get_Count() > 0, &V_2.MoveNext() == false
+			//   call: ProtocolParser.WriteUInt64(arg0, V_3) // datum
+			//   conditions: arg1.get_Entities().get_Count() > 0, &V_2.MoveNext() == false, &V_4.MoveNext() == true
+			var iterConds = info.Conditions.Where(x => x.Lhs.Contains("MoveNext"));
+			var listConds = info.Conditions.Where(x => x.Lhs.Contains("().get_Count()"));
+			if (listConds.Any() && !iterConds.Any(
+				x => x.Cmp == MethodWalker.Comparison.IsTrue)) {
+				// Skip packed size writes:
+				return;
+			}
+			var packed = iterConds.Any(x => x.Cmp == MethodWalker.Comparison.IsFalse);
+
+			var label = FieldLabel.Invalid;
+			if (iterConds.Any()) {
+				label = FieldLabel.Repeated;
+			} else if (info.Conditions.Any(x => x.Lhs.Contains(".Has"))) {
+				label = FieldLabel.Optional;
+			} else {
+				label = FieldLabel.Required;
+			}
+
+			// Get name:
+			var name = "";
+			if (label == FieldLabel.Repeated) {
+				name = info.Conditions.First(x => x.Lhs.Contains("get_Count()")).Lhs;
+				name = name.Substring(name.IndexOf(".get_") + 5);
+				name = name.Substring(0, name.Length - 14);
+			} else {
+				name = info.Arguments[1].ToString();
+				if (name.StartsWith("Encoding.get_UTF8()")) {
+					name = name.Substring(31, name.Length - 32);
+				}
+				name = name.Substring(name.IndexOf(".get_") + 5);
+				name = name.Substring(0, name.Length - 2);
+			}
+			var field = type.Properties.First(x => x.Name == name);
+			name = name.ToLowerUnder();
+
+			// Pop tag:
+			var tag = 0;
+			var i = 0;
+			while (true) {
+				var b = written[i];
+				tag |= (b & 0x7f) << (7 * i);
+				i += 1;
+				if (0 == (b & 0x80)) break;
+			}
+			if (i != written.Count) {
+				throw new InvalidProgramException(
+					"bad tag bytes, not gonna recover from this state");
+			}
+			written.Clear();
+			tag >>= 3;
+
+			// Parse field type:
+			var fieldType = FieldType.Invalid;
+			var subType = default(TypeName);
+			if (field.PropertyType.Resolve().IsEnum) {
+				fieldType = FieldType.Enum;
+				var enumType = field.PropertyType;
+				subType = enumType.PackageName();
+				fieldType = FieldType.Enum;
+			} else if (info.Method.Name == "Serialize") {
+				var messageType = info.Method.DeclaringType;
+				subType = messageType.PackageName();
+				fieldType = FieldType.Message;
+			} else if (info.Method.DeclaringType.Name == "ProtocolParser") {
+				var innerType = field.PropertyType;
+				if (innerType.IsGenericInstance) {
+					innerType = (innerType as GenericInstanceType).GenericArguments.First();
+				}
+				switch(innerType.Name) {
+				// Int32, Int64,
+				// UInt32, UInt64,
+				// Bool, String, Bytes
+				case "Int32":
+					fieldType = FieldType.Int32;
+					break;
+				case "Int64":
+					fieldType = FieldType.Int64;
+					break;
+				case "UInt32":
+					fieldType = FieldType.UInt32;
+					break;
+				case "UInt64":
+					fieldType = FieldType.UInt64;
+					break;
+				case "Boolean":
+					fieldType = FieldType.Bool;
+					break;
+				case "String":
+					fieldType = FieldType.String;
+					break;
+				case "Byte[]":
+					fieldType = FieldType.Bytes;
+					break;
+				default:
+					Console.WriteLine("unresolved type");
+					break;
+				}
+			} else if (info.Method.DeclaringType.Name == "BinaryWriter") {
+				// Double, Float,
+				// Fixed32, Fixed64,
+				// SFixed32, SFixed64,
+				switch (info.Method.Parameters.First().ParameterType.Name) {
+				case "Double":
+					fieldType = FieldType.Double;
+					break;
+				case "Single":
+					fieldType = FieldType.Float;
+					break;
+				case "UInt32":
+					fieldType = FieldType.Fixed32;
+					break;
+				case "UInt64":
+					fieldType = FieldType.Fixed64;
+					break;
+				default:
+					Console.WriteLine("unresolved type");
+					break;
+				}
+			}
+			if (fieldType == FieldType.Invalid) {
+				Console.WriteLine("unresolved type");
+			}
+
+			var fld = new FieldNode(name, label, fieldType, tag);
+			fld.TypeName = subType;
+			fld.Packed = packed;
+			if (defaults.ContainsKey(name)) fld.DefaultValue = defaults[name];
+			// Console.WriteLine("call: {0}\nconditions: {1}", info.String, String.Join(", ", info.Conditions));
+			Console.Write("{0}", fld.Text);
 		};
 		serializeWalker.Walk();
 
@@ -135,13 +297,13 @@ public class MethodWalker {
 	}
 
 	public class Condition {
-		public int Until { get; set; }
+		public int Offset { get; set; }
 		public string Lhs { get; set; }
 		public string Rhs { get; set; }
 		public Comparison Cmp { get; set; }
 
-		public Condition(int until, string lhs, Comparison cmp, string rhs = null) {
-			Until = until;
+		public Condition(int offset, string lhs, Comparison cmp, string rhs = null) {
+			Offset = offset;
 			Lhs = lhs;
 			Rhs = rhs;
 			Cmp = cmp;
@@ -165,7 +327,7 @@ public class MethodWalker {
 	public class CallInfo {
 		public List<Condition> Conditions { get; set; }
 		public MethodReference Method { get; set; }
-		public List<string> Arguments { get; set; }
+		public List<object> Arguments { get; set; }
 		public string String { get; set; }
 	}
 
@@ -200,16 +362,26 @@ public class MethodWalker {
 		}
 	}
 
-	List<OpState> processingQueue = new List<OpState>();
+	List<OpState> processing = new List<OpState>();
 
 	public void Walk() {
-		processingQueue.Add(new OpState());
+		processing.Add(new OpState());
 		
-		while (processingQueue.Count > 0) {
-			processingQueue.Sort((a, b) => a.Conditions.Count - b.Conditions.Count);
-			processingQueue.Sort((a, b) => a.Offset - b.Offset);
-			var next = processingQueue.First();
-			processingQueue.Remove(next);
+		while (processing.Count > 0) {
+			processing.Sort((a, b) => a.Conditions.Count - b.Conditions.Count);
+			processing.Sort((a, b) => a.Offset - b.Offset);
+			var next = processing.First();
+			processing.Remove(next);
+			// Annihilate the conditions from any branch joins:
+			while (processing.Any() && processing.First().Offset == next.Offset) {
+				var joinOp = processing.First();
+				processing.Remove(joinOp);
+				var deadConds = next.Conditions.Where(c =>
+					joinOp.Conditions.Any(c2 => c2.Offset == c.Offset)).ToList();
+				foreach (var c in deadConds) {
+					next.Conditions.Remove(c);
+				}
+			}
 			Explore(next.Offset, next.Stack, next.Conditions);
 		}
 	}
@@ -218,15 +390,6 @@ public class MethodWalker {
 		var ins = Method.Body.Instructions.First(o => o.Offset == offset);
 		if (Explored.Contains(ins.Offset)) return;
 		Explored.Add(ins.Offset);
-		var deadConditions = new List<Condition>();
-		foreach (var cond in conditions) {
-			if (cond.Until == offset) {
-				deadConditions.Add(cond);
-			}
-		}
-		foreach (var deadCond in deadConditions) {
-			conditions.Remove(deadCond);
-		}
 
 		switch (ins.OpCode.Code) {
 		case Code.Ldc_I4:
@@ -267,16 +430,18 @@ public class MethodWalker {
 			break;
 		case Code.Brfalse: {
 			var lhs = stack.Pop().ToString();
+			var src = ins.Offset;
 			var tgt = (ins.Operand as Instruction).Offset;
-			var cond = new Condition(tgt, lhs, Comparison.IsFalse);
-			var ncond = new Condition(tgt, lhs, Comparison.IsTrue);
+			var cond = new Condition(src, lhs, Comparison.IsFalse);
+			var ncond = new Condition(src, lhs, Comparison.IsTrue);
 			Branch(tgt, stack, conditions, cond, ncond); 
 		} break;
 		case Code.Brtrue: {
 			var lhs = stack.Pop().ToString();
+			var src = ins.Offset;
 			var tgt = (ins.Operand as Instruction).Offset;
-			var cond = new Condition(tgt, lhs, Comparison.IsTrue);
-			var ncond = new Condition(tgt, lhs, Comparison.IsFalse);
+			var cond = new Condition(src, lhs, Comparison.IsTrue);
+			var ncond = new Condition(src, lhs, Comparison.IsFalse);
 			Branch(tgt, stack, conditions, cond, ncond);
 		} break;
 		case Code.Beq:
@@ -285,38 +450,39 @@ public class MethodWalker {
 		case Code.Bge:
 		case Code.Blt:
 		case Code.Bgt: {
-			var lhs = stack.Pop().ToString();
 			var rhs = stack.Pop().ToString();
+			var lhs = stack.Pop().ToString();
+			var src = ins.Offset;
 			var tgt = (ins.Operand as Instruction).Offset;
 			Condition cond = null, ncond = null;
 			switch (ins.OpCode.Code) {
 			case Code.Beq:
-				cond = new Condition(tgt, lhs, Comparison.Equal, rhs);
-				ncond = new Condition(tgt, lhs, Comparison.Inequal, rhs);
+				cond = new Condition(src, lhs, Comparison.Equal, rhs);
+				ncond = new Condition(src, lhs, Comparison.Inequal, rhs);
 				break;
 			case Code.Bne_Un:
-				cond = new Condition(tgt, lhs, Comparison.Inequal, rhs);
-				ncond = new Condition(tgt, lhs, Comparison.Equal, rhs);
+				cond = new Condition(src, lhs, Comparison.Inequal, rhs);
+				ncond = new Condition(src, lhs, Comparison.Equal, rhs);
 				break;
 			case Code.Ble:
 				// x <= y --> y >= x; !(x <= y) --> x > y
-				cond = new Condition(tgt, rhs, Comparison.GreaterThanEqual, lhs);
-				ncond = new Condition(tgt, lhs, Comparison.GreaterThan, rhs);
+				cond = new Condition(src, rhs, Comparison.GreaterThanEqual, lhs);
+				ncond = new Condition(src, lhs, Comparison.GreaterThan, rhs);
 				break;
 			case Code.Bge:
-				cond = new Condition(tgt, lhs, Comparison.GreaterThanEqual, rhs);
+				cond = new Condition(src, lhs, Comparison.GreaterThanEqual, rhs);
 				// !(x >= y) --> y > x
-				ncond = new Condition(tgt, rhs, Comparison.GreaterThan, lhs);
+				ncond = new Condition(src, rhs, Comparison.GreaterThan, lhs);
 				break;
 			case Code.Blt:
 				// x < y --> y > x; !(x < y) --> x >= y
-				cond = new Condition(tgt, rhs, Comparison.GreaterThan, lhs);
-				ncond = new Condition(tgt, lhs, Comparison.GreaterThanEqual, rhs);
+				cond = new Condition(src, rhs, Comparison.GreaterThan, lhs);
+				ncond = new Condition(src, lhs, Comparison.GreaterThanEqual, rhs);
 				break;
 			case Code.Bgt:
 				// !(x > y) --> y >= x
-				cond = new Condition(tgt, lhs, Comparison.GreaterThan, rhs);
-				ncond = new Condition(tgt, rhs, Comparison.GreaterThanEqual, lhs);
+				cond = new Condition(src, lhs, Comparison.GreaterThan, rhs);
+				ncond = new Condition(src, rhs, Comparison.GreaterThanEqual, lhs);
 				break;
 			}
 			Branch(tgt, stack, conditions, cond, ncond);
@@ -333,21 +499,27 @@ public class MethodWalker {
 				Argument = arg,
 			});
 			break;
+		case Code.Mul: {
+			var rhs = stack.Pop().ToString();
+			var lhs = stack.Pop().ToString();
+			stack.Add(String.Format("{0} * {1}", lhs, rhs));
+		} break;
 		case Code.Call:
 		case Code.Callvirt: {
 			var mr = ins.Operand as MethodReference;
-			var args = new List<string>();
+			var args = new List<object>();
 			for (var i = 0; i < mr.Parameters.Count; i++) {
-				args.Add(stack.Pop().ToString());
+				args.Add(stack.Pop());
 			}
 			if (mr.HasThis) {
-				args.Add(stack.Pop().ToString());
+				args.Add(stack.Pop());
 			}
+			args.Reverse();
 			var callString = String.Format("{0}.{1}({2})",
-				mr.HasThis ? args.Last() : mr.DeclaringType.Name,
+				mr.HasThis ? args.First().ToString() : mr.DeclaringType.Name,
 				mr.Name,
 				String.Join(", ",
-					mr.HasThis ? args.Take(args.Count - 1) : args));
+					mr.HasThis ? args.Skip(1) : args));
 			if (mr.ReturnType.FullName != "System.Void") {
 				stack.Add(callString);
 			}
@@ -362,22 +534,22 @@ public class MethodWalker {
 		}
 
 		if (ins.Next != null) {
-			processingQueue.Add(new OpState(ins.Next.Offset, stack, conditions));
+			processing.Add(new OpState(ins.Next.Offset, stack, conditions));
 		}
 	}
 
-	void Branch(int offset, List<object> stack, List<Condition> conditions,
+	void Branch(int target, List<object> stack, List<Condition> conditions,
 		Condition conditionTaken, Condition conditionNotTaken) {
 
 		var newConds = new List<Condition>(conditions);
 		newConds.Add(conditionTaken);
 		conditions.Add(conditionNotTaken);
-		processingQueue.Add(new OpState(offset,
+		processing.Add(new OpState(target,
 			new List<object>(stack), newConds));
 	}
 }
 
-public static class CollectionExtensions {
+public static class DecompilerExtensions {
 	// Because a List<T> is a more versatile stack than Stack<T>.  Mainly for
 	// ease of cloning.
 	public static T Pop<T>(this List<T> stack) {
@@ -385,5 +557,29 @@ public static class CollectionExtensions {
 		var result = stack[last];
 		stack.RemoveAt(last);
 		return result;
+	}
+
+	public static string ToLowerUnder(this string s) {
+		var res = "";
+		for (var i = 0; i < s.Length; i++) {
+			if (s[i] >= 'A' && s[i] < 'a' && i != 0)
+			{
+				res += "_";
+			}
+			res += s[i].ToString().ToLower();
+		}
+		return res.TrimEnd('_');
+	}
+
+	public static TypeName PackageName(this TypeReference type) {
+		var types = new List<string> { type.Name };
+		while (type.DeclaringType != null) {
+			type = type.DeclaringType;
+			var tName = type.Name;
+			if (tName == "Types") continue;
+			types.Add(tName);
+		}
+		types.Reverse();
+		return new TypeName(type.Namespace, String.Join(".", types));
 	}
 }
