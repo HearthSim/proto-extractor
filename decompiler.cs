@@ -1,9 +1,12 @@
 using System;
 using System.Linq;
+using System.Text;
 using System.Collections.Generic;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Mono.Cecil.Rocks;
+using System.Reflection;
+using System.IO;
 
 class ProtobufDecompiler {
 	public void ProcessTypes(IEnumerable<TypeDefinition> types) {
@@ -17,24 +20,165 @@ class ProtobufDecompiler {
 			processor = new GoogleTypeProcessor();
 		}
 
-		var packages = new Dictionary<string, List<ILanguageNode>>();
 		foreach (var type in types) {
 			processor.Process(type);
 		}
+		processor.Complete();
 
-		// TODO: create files.
+		// A map from typename to message:
+		var allMessages = new Dictionary<string, MessageNode>();
+		// Add child nodes to their parents:
+		foreach (var nodeList in processor.PackageNodes.Values) {
+			var children = new List<ILanguageNode>();
+			var messages = nodeList.Where(x => x is MessageNode).Select(x => x as MessageNode);
+			foreach (var message in messages) {
+				allMessages.Add(message.Name.Text, message);
+			}
+			var enums = nodeList.Where(x => x is EnumNode).Select(x => x as EnumNode);
+			foreach (var node in messages.Where(n => n.Name.Name.Contains("."))) {
+				var parentName = node.Name.Name;
+				parentName = parentName.Substring(0, parentName.LastIndexOf('.'));
+				var parent = messages.First(m => m.Name.Name == parentName);
+				parent.Messages.Add(node);
+				children.Add(node);
+			}
+			foreach (var node in enums.Where(n => n.Name.Name.Contains("."))) {
+				var parentName = node.Name.Name;
+				parentName = parentName.Substring(0, parentName.LastIndexOf('.'));
+				var parent = messages.First(m => m.Name.Name == parentName);
+				parent.Enums.Add(node);
+				children.Add(node);
+			}
+			foreach (var node in children) {
+				nodeList.Remove(node);
+			}
+		}
+
+		// Move extensions to their sources:
+		var blacklistedExtensionSources = new[]{
+			// These types aren't allowed to have extensions, because they were
+			// made by an intern or something:
+			".PegasusShared.ScenarioDbRecord"
+		};
+		foreach (var nodeList in processor.PackageNodes.Values) {
+			var messages = nodeList
+				.Where(x => x is MessageNode)
+				.Select(x => x as MessageNode)
+				.Where(x => !blacklistedExtensionSources.Contains(x.Name.Text));
+			foreach (var message in messages) {
+				var extensions = message.Fields
+					.Where(x => x.Label != FieldLabel.Required &&
+						x.Tag >= 100 &&
+						!blacklistedExtensionSources.Contains(x.TypeName.Text))
+					.ToList();
+				foreach (var extField in extensions) {
+					message.Fields.Remove(extField);
+					message.AcceptsExtensions = true;
+					var target = message.Name;
+					var source = extField.TypeName;
+					if (String.IsNullOrEmpty(source.Package)) {
+						throw new Exception("extension field is not a message");
+					}
+					var sourceNode = allMessages[source.Text];
+					sourceNode.AddExtend(target, extField);
+				}
+			}
+		}
+
+		// A map from type name to its file
+		var typesMap = new Dictionary<string, string>();
+		var currAssembly = Assembly.GetExecutingAssembly();
+		var typesMapName = currAssembly.GetManifestResourceNames()[0];
+		using (var typesMapFile = currAssembly.GetManifestResourceStream(typesMapName))
+		using (var typesMapReader = new StreamReader(typesMapFile)) {
+			while (!typesMapReader.EndOfStream) {
+				var line = typesMapReader.ReadLine().Trim();
+				if (line.Length == 0) continue;
+				if (line[0] == '#') continue;
+				var parts = line.Split(new[]{"\t"}, StringSplitOptions.RemoveEmptyEntries);
+				typesMap[parts[1]] = parts[0];
+			}
+		}
+
+		// map from type to filename
+		var messageFile = new Dictionary<string, string>();
+		// map from filename to filenode
+		var fileNodes = new Dictionary<string, FileNode>();
+		foreach (var nodeList in processor.PackageNodes.Values) {
+			var first = nodeList.First();
+			var firstType = default(TypeName);
+			if (first is MessageNode) firstType = (first as MessageNode).Name;
+			if (first is EnumNode) firstType = (first as EnumNode).Name;
+			var firstTypeName = firstType.Text;
+			if (!typesMap.ContainsKey(firstTypeName)) {
+				throw new Exception(String.Format(
+					"Couldn't find the first type of a package in the type map: {0}", firstTypeName));
+			}
+			var fileName = typesMap[firstTypeName];
+			var fileNode = new FileNode(fileName, firstType.Package);
+			fileNodes[fileName] = fileNode;
+
+			var onFirst = true;
+			foreach (var node in nodeList) {
+				var type = default(TypeName);
+				if (node is MessageNode) type = (node as MessageNode).Name;
+				if (node is EnumNode) type = (node as EnumNode).Name;
+				var typeName = type.Text;
+				if (!onFirst && typesMap.ContainsKey(typeName)) {
+					fileName = typesMap[typeName];
+					fileNode = new FileNode(fileName, type.Package);
+					fileNodes[fileName] = fileNode;
+				}
+				fileNode.Types.Add(node);
+				messageFile[type.Text] = fileName;
+				onFirst = false;
+			}
+		}
+
+		foreach (var pair in fileNodes) {
+			var fileName = pair.Key;
+			var fileNode = pair.Value;
+			var files = new HashSet<string>();
+			foreach (var m in fileNode.Types) {
+				if (m is MessageNode) {
+					foreach (var i in (m as MessageNode).GetImports()) {
+						files.Add(messageFile[i.Text]);
+					}
+				}
+			}
+			files.Remove(fileName);
+			foreach (var file in files) {
+				fileNode.Imports.Add(new ImportNode(file + ".proto"));
+			}
+			fileNode.Imports.Sort((a, b) => String.Compare(a.Target, b.Target));
+
+			fileNode.ResolveChildren();
+
+			var pathName = Path.Combine(ExtractDir, fileName + ".proto");
+			Directory.CreateDirectory(Path.GetDirectoryName(pathName));
+			using (var outFile = File.Create(pathName))
+			using (var outStream = new StreamWriter(outFile, new UTF8Encoding(false))) {
+				outStream.Write(fileNode.Text);
+			}
+		}
 	}
 
 	public void WriteProtos() {}
 
 	TypeProcessor processor;
 	List<FileNode> files = new List<FileNode>();
+	string ExtractDir;
+	public ProtobufDecompiler(string extractDir = ".") {
+		ExtractDir = extractDir;
+	}
 }
 
 // Represents a type capable of processing c# types generated by protoc and
 // decompiling them into protobuf type nodes.
 abstract class TypeProcessor {
 	public abstract void Process(TypeDefinition type);
+
+	public abstract void Complete();
 
 	public Dictionary<string, List<ILanguageNode>> PackageNodes { get; set; }
 
@@ -60,13 +204,10 @@ class SilentOrbitTypeProcessor : TypeProcessor {
 			return;
 		}
 
-		if (type.IsEnum) {
-			ProcessEnum(type);
-			return;
-		}
-
 		if (type.Interfaces.Any(r => r.Name == "IProtoBuf")) {
 			ProcessMessage(type);
+			// Add any nested types that are enums to enumTypes:
+			AddEnumNestedTypes(type);
 			return;
 		}
 
@@ -79,14 +220,25 @@ class SilentOrbitTypeProcessor : TypeProcessor {
 		}
 	}
 
-	void ProcessEnum(TypeDefinition type) {}
+	public override void Complete() {
+		foreach (var enumType in enumTypes) {
+			ProcessEnum(enumType);
+		}
+	}
+
+	HashSet<TypeDefinition> enumTypes = new HashSet<TypeDefinition>();
+	void ProcessEnum(TypeDefinition type) {
+		var typeName = type.PackageName();
+		var result = new EnumNode(typeName);
+		foreach (var field in type.Fields.Where(f => f.HasConstant)) {
+			result.Entries.Add(Tuple.Create(field.Name, (int)field.Constant));
+		}
+		AddPackageNode(typeName.Package, result);
+	}
 
 	void ProcessMessage(TypeDefinition type) {
-		var package = type.Namespace;
-		var result = new MessageNode(type.Name);
-		if (type.Name == "IncrementChannelCountResponse") {
-			Console.WriteLine();
-		}
+		var typeName = type.PackageName();
+		var result = new MessageNode(typeName);
 		var defaults = new Dictionary<string, string>();
 		var deserializeWalker = new MethodWalker(type.Methods.First(m =>
 			m.Name == "Deserialize" && m.Parameters.Count == 3));
@@ -98,6 +250,9 @@ class SilentOrbitTypeProcessor : TypeProcessor {
 					val = "\"\"";
 				} else if (info.Arguments[1].GetType() == typeof(string)) {
 					val = "\"" + val.Replace("\"", "\\\"") + "\"";
+				}
+				if (info.Method.Parameters.First().ParameterType.Name == "Boolean") {
+					val = val == "0" ? "false" : "true";
 				}
 				defaults[fieldName] = val;
 			}
@@ -167,7 +322,7 @@ class SilentOrbitTypeProcessor : TypeProcessor {
 				name = name.Substring(name.IndexOf(".get_") + 5);
 				name = name.Substring(0, name.Length - 2);
 			}
-			var field = type.Properties.First(x => x.Name == name);
+			var prop = type.Properties.First(x => x.Name == name);
 			name = name.ToLowerUnder();
 
 			// Pop tag:
@@ -189,17 +344,24 @@ class SilentOrbitTypeProcessor : TypeProcessor {
 			// Parse field type:
 			var fieldType = FieldType.Invalid;
 			var subType = default(TypeName);
-			if (field.PropertyType.Resolve().IsEnum) {
+			if (prop.PropertyType.Resolve().IsEnum) {
 				fieldType = FieldType.Enum;
-				var enumType = field.PropertyType;
+				var enumType = prop.PropertyType;
+				enumTypes.Add(enumType.Resolve());
 				subType = enumType.PackageName();
 				fieldType = FieldType.Enum;
+				if (defaults.ContainsKey(name)) {
+					var intVal = Int32.Parse(defaults[name]);
+					defaults[name] = enumType.Resolve().Fields
+						.First(x => x.HasConstant && intVal == (int)x.Constant)
+						.Name;
+				}
 			} else if (info.Method.Name == "Serialize") {
 				var messageType = info.Method.DeclaringType;
 				subType = messageType.PackageName();
 				fieldType = FieldType.Message;
 			} else if (info.Method.DeclaringType.Name == "ProtocolParser") {
-				var innerType = field.PropertyType;
+				var innerType = prop.PropertyType;
 				if (innerType.IsGenericInstance) {
 					innerType = (innerType as GenericInstanceType).GenericArguments.First();
 				}
@@ -258,16 +420,25 @@ class SilentOrbitTypeProcessor : TypeProcessor {
 				Console.WriteLine("unresolved type");
 			}
 
-			var fld = new FieldNode(name, label, fieldType, tag);
-			fld.TypeName = subType;
-			fld.Packed = packed;
-			if (defaults.ContainsKey(name)) fld.DefaultValue = defaults[name];
-			// Console.WriteLine("call: {0}\nconditions: {1}", info.String, String.Join(", ", info.Conditions));
-			Console.Write("{0}", fld.Text);
+			var field = new FieldNode(name, label, fieldType, tag);
+			field.TypeName = subType;
+			field.Packed = packed;
+			if (defaults.ContainsKey(name)) {
+				field.DefaultValue = defaults[name];
+			}
+			result.Fields.Add(field);
 		};
 		serializeWalker.Walk();
 
-		AddPackageNode(package, result);
+		AddPackageNode(typeName.Package, result);
+	}
+
+	void AddEnumNestedTypes(TypeDefinition type) {
+		if (!type.HasNestedTypes) return;
+		foreach (var subType in type.NestedTypes) {
+			if (subType.IsEnum) enumTypes.Add(subType);
+			AddEnumNestedTypes(subType);
+		}
 	}
 }
 
@@ -277,6 +448,8 @@ class GoogleTypeProcessor : TypeProcessor {
 	public override void Process(TypeDefinition type) {
 		return;
 	}
+
+	public override void Complete() {}
 }
 
 // Explore the code paths of a method and generate events for every possible
