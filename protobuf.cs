@@ -1,6 +1,8 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
 
 // A protobuf AST node.  These nodes are a subset of the full protobuf language,
 public interface ILanguageNode {
@@ -18,8 +20,42 @@ public interface ILanguageNode {
 public struct TypeName : ILanguageNode {
 	public string Text {
 		get {
-			// TODO: optimize away full-qualification
-			return String.Format(".{0}.{1}", Package, Name);
+			var needPackage = false;
+			var package = "." + Package;
+			if (Parent == null) {
+				needPackage = true;
+			} else {
+				var parentFile = Parent;
+				while (!(parentFile is FileNode)) parentFile = parentFile.Parent;
+				var filePackage = "." + (parentFile as FileNode).Package;
+				needPackage = package != filePackage;
+				if (needPackage) {
+					var fileParts = filePackage.Split('.');
+					var myParts = package.Split('.');
+					var i = 0;
+					for (; i < myParts.Length && i < fileParts.Length; i++) {
+						if (myParts[i] != fileParts[i]) break;
+					}
+					package = String.Join(".", myParts.Skip(i));
+				}
+			}
+			if (needPackage) {
+				if (!String.IsNullOrEmpty(package)) package += ".";
+				return String.Format("{0}{1}", package, Name);
+			} else {
+				var parent = Parent;
+				var names = Name.Split('.');
+				while (names.Length > 1 && parent != null) {
+					if (parent is MessageNode &&
+						(parent as MessageNode).Name.Name == names[0]) {
+						names = names.Skip(1).ToArray();
+						parent = Parent;
+					} else {
+						parent = parent.Parent;
+					}
+				}
+				return String.Join(".", names);
+			}
 		}
 	}
 
@@ -31,6 +67,11 @@ public struct TypeName : ILanguageNode {
 
 	public string Package;
 	public string Name;
+	public string Final {
+		get {
+			return Name.Split('.').Last();
+		}
+	}
 
 	public TypeName(string package, string name) : this() {
 		Parent = null;
@@ -43,11 +84,13 @@ public struct TypeName : ILanguageNode {
 public class FileNode : ILanguageNode {
 	public string Text {
 		get {
-			var result = "";
-			foreach (var i in Imports) result += i.Text;
-			result += "\n";
-			foreach (var m in Messages) result += m.Text + "\n";
-			return result;
+			var result = new List<string>();
+			result.Add(String.Format("package {0};", Package));
+			if (Imports.Any())
+				result.Add(String.Join("", Imports.Select(x => x.Text)));
+			result.Add("");
+			foreach (var m in Types) result.Add(m.Text);
+			return String.Join("\n", result);
 		}
 	}
 
@@ -56,17 +99,19 @@ public class FileNode : ILanguageNode {
 	public void ResolveChildren(ILanguageNode parent = null) {
 		Parent = parent;
 		foreach (var i in Imports) i.ResolveChildren(this);
-		foreach (var m in Messages) m.ResolveChildren(this);
+		foreach (var m in Types) m.ResolveChildren(this);
 	}
 
 	public List<ImportNode> Imports;
-	public List<MessageNode> Messages;
+	public List<ILanguageNode> Types;
+	public string Name;
 	public string Package;
 
-	public FileNode(string package) {
+	public FileNode(string name, string package) {
+		Name = name;
 		Package = package;
 		Imports = new List<ImportNode>();
-		Messages = new List<MessageNode>();
+		Types = new List<ILanguageNode>();
 	}
 }
 
@@ -74,7 +119,7 @@ public class FileNode : ILanguageNode {
 public class ImportNode : ILanguageNode {
 	public string Text {
 		get {
-			return String.Format("import {0};\n", Target);
+			return String.Format("import \"{0}\";\n", Target);
 		}
 	}
 
@@ -93,19 +138,32 @@ public class ImportNode : ILanguageNode {
 
 // Only supports messages, fields, and enums within the message.  This leaves
 // out options, extensions, reservations, and groups.
+[DebuggerDisplay("<MessageNode Name={Name.Text}>")]
 public class MessageNode : ILanguageNode {
 	public string Text {
 		get {
-			var result = String.Format("message {0} {{\n", Name);
+			var result = String.Format("message {0} {{\n", Name.Final);
 
 			foreach (var e in Enums)
 				foreach (var line in e.Text.Split('\n'))
-					result += "\t" + line + "\n";
+					if (line.Trim().Length != 0)
+						result += "\t" + line + "\n";
 			foreach (var m in Messages)
 				foreach (var line in m.Text.Split('\n'))
-					result += "\t" + line + "\n";
+					if (line.Trim().Length != 0)
+						result += "\t" + line + "\n";
+			if ((Enums.Any() || Messages.Any()) && Fields.Any())
+				result += "\n";
 			foreach (var f in Fields)
 				result += "\t" + f.Text;
+			foreach (var pair in Extends) {
+				result += String.Format("\textend {0} {{\n", pair.Key.Text);
+				foreach (var field in pair.Value)
+					result += "\t\t" + field.Text;
+				result += "\t}\n";
+			}
+			if (AcceptsExtensions)
+				result += "\textensions 100 to 10000;\n";
 
 			return result + "}\n";
 		}
@@ -118,18 +176,54 @@ public class MessageNode : ILanguageNode {
 		foreach (var e in Enums) e.ResolveChildren(this);
 		foreach (var m in Messages) m.ResolveChildren(this);
 		foreach (var f in Fields) f.ResolveChildren(this);
+		foreach (var fields in Extends.Values)
+			foreach (var f in fields)
+				f.ResolveChildren(this);
+	}
+
+	public List<TypeName> GetImports() {
+		var result = new HashSet<TypeName>();
+		var alreadyHere = new HashSet<TypeName>();
+		foreach (var e in Enums) alreadyHere.Add(e.Name);
+		foreach (var m in Messages) {
+			alreadyHere.Add(m.Name);
+			foreach (var i in m.GetImports())
+				result.Add(i);
+		}
+		foreach (var f in Fields)
+			if (f.Type == FieldType.Message || f.Type == FieldType.Enum)
+				result.Add(f.TypeName);
+		foreach (var e in Extends.Keys) result.Add(e);
+		return result
+			.Where(x => !alreadyHere.Contains(x))
+			// Lop off any subtyping, because we only care about the containing message:
+			.Select(x => {
+				var i = x.Name.IndexOf(".");
+				if (i < 0) return x;
+				return new TypeName(x.Package, x.Name.Substring(0, i));
+			})
+			.ToList();
 	}
 
 	public List<EnumNode> Enums;
 	public List<MessageNode> Messages;
 	public List<FieldNode> Fields;
-	public string Name;
+	public Dictionary<TypeName, List<FieldNode>> Extends;
+	public TypeName Name;
+	public bool AcceptsExtensions;
 
-	public MessageNode(string name) {
+	public MessageNode(TypeName name) {
 		Name = name;
 		Enums = new List<EnumNode>();
 		Messages = new List<MessageNode>();
 		Fields = new List<FieldNode>();
+		Extends = new Dictionary<TypeName, List<FieldNode>>();
+	}
+
+	public void AddExtend(TypeName target, FieldNode field) {
+		if (!Extends.ContainsKey(target))
+			Extends[target] = new List<FieldNode>();
+		Extends[target].Add(field);
 	}
 }
 
@@ -137,9 +231,9 @@ public class MessageNode : ILanguageNode {
 public class EnumNode : ILanguageNode {
 	public string Text {
 		get {
-			var result = String.Format("enum {0} {{\n", Name);
-			foreach (var pair in Entries) {
-				result += String.Format("{0} = {1};\n", pair.Key, pair.Value);
+			var result = String.Format("enum {0} {{\n", Name.Final);
+			foreach (var tuple in Entries) {
+				result += String.Format("\t{0} = {1};\n", tuple.Item1, tuple.Item2);
 			}
 			return result + "}\n";
 		}
@@ -151,12 +245,12 @@ public class EnumNode : ILanguageNode {
 		Parent = parent;
 	}
 
-	public Dictionary<string, int> Entries;
-	public string Name;
+	public List<Tuple<string, int>> Entries;
+	public TypeName Name;
 
-	public EnumNode(string name) {
+	public EnumNode(TypeName name) {
 		Name = name;
-		Entries = new Dictionary<string, int>();
+		Entries = new List<Tuple<string, int>>();
 	}
 }
 
