@@ -176,6 +176,7 @@ public class MessageNode : ILanguageNode {
 		foreach (var e in Enums) e.ResolveChildren(this);
 		foreach (var m in Messages) m.ResolveChildren(this);
 		foreach (var f in Fields) f.ResolveChildren(this);
+		foreach (var name in Extends.Keys) name.ResolveChildren(this);
 		foreach (var fields in Extends.Values)
 			foreach (var f in fields)
 				f.ResolveChildren(this);

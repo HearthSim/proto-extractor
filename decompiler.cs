@@ -100,10 +100,6 @@ class ProtobufDecompiler {
 			}
 		}
 
-		// map from type to filename
-		var messageFile = new Dictionary<string, string>();
-		// map from filename to filenode
-		var fileNodes = new Dictionary<string, FileNode>();
 		foreach (var nodeList in processor.PackageNodes.Values) {
 			var first = nodeList.First();
 			var firstType = default(TypeName);
@@ -134,7 +130,14 @@ class ProtobufDecompiler {
 				onFirst = false;
 			}
 		}
+	}
 
+	// map from filename to filenode
+	Dictionary<string, FileNode> fileNodes = new Dictionary<string, FileNode>();
+	// map from type to filename
+	Dictionary<string, string> messageFile = new Dictionary<string, string>();
+
+	public void WriteProtos(string extractDir = ".") {
 		foreach (var pair in fileNodes) {
 			var fileName = pair.Key;
 			var fileNode = pair.Value;
@@ -154,7 +157,7 @@ class ProtobufDecompiler {
 
 			fileNode.ResolveChildren();
 
-			var pathName = Path.Combine(ExtractDir, fileName + ".proto");
+			var pathName = Path.Combine(extractDir, fileName + ".proto");
 			Directory.CreateDirectory(Path.GetDirectoryName(pathName));
 			using (var outFile = File.Create(pathName))
 			using (var outStream = new StreamWriter(outFile, new UTF8Encoding(false))) {
@@ -163,13 +166,83 @@ class ProtobufDecompiler {
 		}
 	}
 
-	public void WriteProtos() {}
+	// Write protos suitable for use with golang/protobuf.  This method modifies
+	// the tree.  It changes package names to match file names, and changes the
+	// file structure a bit.
+	public void WriteGoProtos(string outDir, string packagePrefix) {
+		foreach (var pair in fileNodes) {
+			var fileName = pair.Key;
+			var fileNode = pair.Value;
+			var package = fileName.Split('/').Last();
+			packageMap[fileName] = package;
+			fileNode.Package = package;
+			foreach (var import in fileNode.Imports) {
+				var parts = import.Target.Split('/');
+				var newParts = new List<string>(parts.Take(parts.Length - 1));
+				newParts.Add(parts[parts.Length - 1].Split('.').First());
+				newParts.Add(parts[parts.Length - 1]);
+				import.Target = packagePrefix + String.Join("/", newParts);
+			}
+		}
+		foreach (var pair in fileNodes) {
+			var fileName = pair.Key;
+			var fileNode = pair.Value;
+			foreach (var item in fileNode.Types) {
+				var message = item as MessageNode;
+				if (message == null) continue;
+				RewritePackages(message);
+			}
+
+			var pathName = Path.Combine(outDir, fileName, fileName.Split('/').Last() + ".proto");
+			Directory.CreateDirectory(Path.GetDirectoryName(pathName));
+			using (var outFile = File.Create(pathName))
+			using (var outStream = new StreamWriter(outFile, new UTF8Encoding(false))) {
+				outStream.Write(fileNode.Text);
+			}
+		}
+	}
+
+	// map from filename to new package
+	Dictionary<string, string> packageMap = new Dictionary<string, string>();
+
+	void RewritePackages(MessageNode message) {
+		foreach (var field in message.Fields) {
+			var type = field.TypeName;
+			if (!String.IsNullOrEmpty(type.Package)) {
+				// update package:
+				var baseType = String.Format(".{0}.{1}",
+					type.Package,
+					type.Name.Split('.').First());
+				field.TypeName.Package = packageMap[messageFile[baseType]];
+			}
+		}
+		var extends = new Dictionary<TypeName, List<FieldNode>>();
+		foreach (var pair in message.Extends) {
+			var type = pair.Key;
+			var baseType = String.Format(".{0}.{1}",
+				type.Package,
+				type.Name.Split('.').First());
+			type.Package = packageMap[messageFile[baseType]];
+			extends.Add(type, pair.Value);
+			foreach (var field in pair.Value) {
+				type = field.TypeName;
+				if (!String.IsNullOrEmpty(type.Package)) {
+					// update package:
+					baseType = String.Format(".{0}.{1}",
+						type.Package,
+						type.Name.Split('.').First());
+					field.TypeName.Package = packageMap[messageFile[baseType]];
+				}
+			}
+		}
+		message.Extends = extends;
+		foreach (var m in message.Messages)
+			RewritePackages(m);
+	}
 
 	TypeProcessor processor;
 	List<FileNode> files = new List<FileNode>();
-	string ExtractDir;
-	public ProtobufDecompiler(string extractDir = ".") {
-		ExtractDir = extractDir;
+	public ProtobufDecompiler() {
 	}
 }
 

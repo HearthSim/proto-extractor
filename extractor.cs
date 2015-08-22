@@ -13,6 +13,7 @@ static class Extractor {
 		}
 
 		var extractDir = ".";
+		string goDir = null;
 		var assemblies = new List<string>();
 		for (var i = 0; i < args.Length; i++) {
 			var arg = args[i];
@@ -22,6 +23,13 @@ static class Extractor {
 						extractDir = arg.Split('=')[1];
 					} else {
 						extractDir = args[i + 1];
+						i += 1;
+					}
+				} else if (arg.StartsWith("--go_out") || arg.StartsWith("-g")) {
+					if (arg.Contains("=")) {
+						goDir = arg.Split('=')[1];
+					} else {
+						goDir = args[i + 1];
 						i += 1;
 					}
 				}
@@ -35,8 +43,11 @@ static class Extractor {
 			allTypes.AddRange(ModuleDefinition.ReadModule(arg).GetAllTypes());
 		}
 
-		var decompiler = new ProtobufDecompiler(extractDir);
+		var decompiler = new ProtobufDecompiler();
 		decompiler.ProcessTypes(allTypes);
-		decompiler.WriteProtos();
+		decompiler.WriteProtos(extractDir);
+		if (goDir != null) {
+			decompiler.WriteGoProtos(goDir, "github.com/HearthSim/hs-proto/go/");
+		}
 	}
 }
