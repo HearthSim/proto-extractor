@@ -322,11 +322,11 @@ public class FieldNode : ILanguageNode {
 	}
 }
 
-// An RPC service.  Not used.
+// An RPC service.
 public class ServiceNode : ILanguageNode {
 	public string Text {
 		get {
-			var result = String.Format("service {0} {\n", Name);
+			var result = String.Format("service {0} {{\n", Name.Name);
 			foreach (var method in Methods) {
 				result += method.Text;
 			}
@@ -341,10 +341,10 @@ public class ServiceNode : ILanguageNode {
 		Parent = parent;
 	}
 
-	public string Name;
+	public TypeName Name;
 	public List<RPCNode> Methods;
 
-	public ServiceNode(string name) {
+	public ServiceNode(TypeName name) {
 		Name = name;
 		Methods = new List<RPCNode>();
 	}
