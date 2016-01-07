@@ -138,8 +138,8 @@ class ProtobufDecompiler {
 			var fileNode = pair.Value;
 			var files = new HashSet<string>();
 			foreach (var m in fileNode.Types) {
-				if (m is MessageNode) {
-					foreach (var i in (m as MessageNode).GetImports()) {
+				if (m is IImportUser) {
+					foreach (var i in (m as IImportUser).GetImports()) {
 						files.Add(messageFile[i.Text]);
 					}
 				}
@@ -501,6 +501,7 @@ class SilentOrbitTypeProcessor : TypeProcessor {
 
 	void ProcessService(TypeDefinition type) {
 		ServiceNode service = null;
+		var retType = default(TypeName);
 		var constructorWalker = new MethodWalker(type.Methods.First(m =>
 			m.IsConstructor && !m.HasParameters));
 		constructorWalker.OnCall = info => {
@@ -513,10 +514,34 @@ class SilentOrbitTypeProcessor : TypeProcessor {
 					var i = fullName.LastIndexOf('.');
 					var serviceType = new TypeName(fullName.Substring(0, i), fullName.Substring(i + 1));
 					service = new ServiceNode(serviceType);
+				} else if (declType.FullName == "MethodDescriptor/ParseMethod") {
+					var funcPtr = info.Arguments[2] as string;
+					var start = funcPtr.IndexOf('<') + 1;
+					var end = funcPtr.IndexOf('>');
+					var fullName = funcPtr.Substring(start, end - start);
+					if (!retType.Equals(default(TypeName))) {
+						Console.WriteLine("Discarding RPC return type: " + retType.Name);
+					}
+					var i = fullName.LastIndexOf('.');
+					retType = new TypeName(fullName.Substring(0, i), fullName.Substring(i + 1));
+				} else if (declType.FullName == "MethodDescriptor") {
+					if (retType.Equals(default(TypeName))) {
+						Console.WriteLine("Missing RPC return type");
+					} else {
+						var fullMethodName = info.Arguments[1] as string;
+						var methodName = fullMethodName.Substring(fullMethodName.LastIndexOf('.') + 1);
+						var argType = new TypeName("unknown", "Unknown");
+						var rpc = new RPCNode(methodName, argType, retType);
+						if (service != null) service.Methods.Add(rpc);
+						retType = default(TypeName);
+					}
 				}
 			}
 		};
 		constructorWalker.Walk();
+
+		// TODO: Extract argument types.
+		//       This will require analysis of senders, handlers and/or handler registration.
 
 		if (service == null) {
 			Console.WriteLine("Failed to extract protobuf name for service class: " + type.FullName);

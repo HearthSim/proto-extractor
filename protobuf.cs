@@ -15,6 +15,10 @@ public interface ILanguageNode {
 	void ResolveChildren(ILanguageNode parent);
 }
 
+public interface IImportUser {
+	List<TypeName> GetImports();
+}
+
 // A complete reference to a type.  This is a struct because it should be easily
 // copied.
 public struct TypeName : ILanguageNode {
@@ -70,6 +74,12 @@ public struct TypeName : ILanguageNode {
 	public string Final {
 		get {
 			return Name.Split('.').Last();
+		}
+	}
+	public TypeName OuterType {
+		get {
+			var i = Name.IndexOf('.');
+			return i < 0 ? this : new TypeName(Package, Name.Substring(0, i));
 		}
 	}
 
@@ -139,7 +149,7 @@ public class ImportNode : ILanguageNode {
 // Only supports messages, fields, and enums within the message.  This leaves
 // out options, extensions, reservations, and groups.
 [DebuggerDisplay("<MessageNode Name={Name.Text}>")]
-public class MessageNode : ILanguageNode {
+public class MessageNode : ILanguageNode, IImportUser {
 	public string Text {
 		get {
 			var result = String.Format("message {0} {{\n", Name.Final);
@@ -198,11 +208,7 @@ public class MessageNode : ILanguageNode {
 		return result
 			.Where(x => !alreadyHere.Contains(x))
 			// Lop off any subtyping, because we only care about the containing message:
-			.Select(x => {
-				var i = x.Name.IndexOf(".");
-				if (i < 0) return x;
-				return new TypeName(x.Package, x.Name.Substring(0, i));
-			})
+			.Select(x => x.OuterType)
 			.ToList();
 	}
 
@@ -323,12 +329,12 @@ public class FieldNode : ILanguageNode {
 }
 
 // An RPC service.
-public class ServiceNode : ILanguageNode {
+public class ServiceNode : ILanguageNode, IImportUser {
 	public string Text {
 		get {
 			var result = String.Format("service {0} {{\n", Name.Name);
 			foreach (var method in Methods) {
-				result += method.Text;
+				result += "\t" + method.Text;
 			}
 			result += "}\n";
 			return result;
@@ -339,6 +345,31 @@ public class ServiceNode : ILanguageNode {
 
 	public void ResolveChildren(ILanguageNode parent) {
 		Parent = parent;
+		Name.ResolveChildren(this);
+		foreach (var m in Methods) m.ResolveChildren(this);
+
+		// Make names unique.
+		// For some reason bnet.protocol.channel.Channel has two AddMember methods.
+		Dictionary<string, int> nameCount = new Dictionary<string, int>();
+		foreach (var m in Methods) {
+			int count;
+			nameCount.TryGetValue(m.Name, out count);
+			count += 1;
+			nameCount[m.Name] = count;
+			if (count > 1) {
+				m.Name += count.ToString();
+			}
+		}
+	}
+
+	public List<TypeName> GetImports() {
+		var result = new HashSet<TypeName>();
+		foreach (var m in Methods) {
+			foreach (var i in m.GetImports()) {
+				result.Add(i);
+			}
+		}
+		return result.Select(x => x.OuterType).ToList();
 	}
 
 	public TypeName Name;
@@ -354,7 +385,7 @@ public class RPCNode : ILanguageNode {
 	public string Text {
 		get {
 			return String.Format("rpc {0} ({1}) returns ({2});\n",
-				Name, RequestTypeName, ResponseTypeName);
+				Name, RequestTypeName.Text, ResponseTypeName.Text);
 		}
 	}
 
@@ -366,13 +397,23 @@ public class RPCNode : ILanguageNode {
 		ResponseTypeName.ResolveChildren(this);
 	}
 
+	public List<TypeName> GetImports() {
+		var result = new HashSet<TypeName>();
+		result.Add(RequestTypeName);
+		result.Add(ResponseTypeName);
+		return result.Select(x => x.OuterType).ToList();
+	}
+
 	public string Name;
 	public TypeName RequestTypeName;
 	public TypeName ResponseTypeName;
 
 	public RPCNode(string name, TypeName requestName, TypeName responseName) {
 		Name = name;
-		RequestTypeName = requestName;
+		// TODO: Extracting the actual argument type is not implemented yet.
+		//       For now put a valid type here to please the protoc compiler.
+		//RequestTypeName = requestName;
+		RequestTypeName = new TypeName("bnet.protocol", "NoData");
 		ResponseTypeName = responseName;
 	}
 }

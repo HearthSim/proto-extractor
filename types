@@ -33,6 +33,20 @@ bnet/rpc						.bnet.protocol.NORESPONSE
 bnet/rpc_config					.bnet.protocol.config.RPCMethodConfig
 bnet/server_pool_types			.bnet.protocol.server_pool.GetLoadRequest
 
+# Services.
+bnet/account_service			.bnet.protocol.account.AccountService
+bnet/authentication_service		.bnet.protocol.authentication.AuthenticationServer
+bnet/challenge_service			.bnet.protocol.challenge.ChallengeNotify
+bnet/channel_invitation_service	.bnet.protocol.channel_invitation.ChannelInvitationService
+bnet/channel_service			.bnet.protocol.channel.Channel
+bnet/connection_service			.bnet.protocol.connection.ConnectionService
+bnet/friends_service			.bnet.protocol.friends.FriendsService
+bnet/game_master_service		.bnet.protocol.game_master.GameMaster
+bnet/game_utilities_service		.bnet.protocol.game_utilities.GameUtilities
+bnet/notification_service		.bnet.protocol.notification.NotificationService
+bnet/presence_service			.bnet.protocol.presence.PresenceService
+bnet/resource_service			.bnet.protocol.resources.Resources
+
 # Pegasus:
 # filenames are guessed here
 pegasus/patching				.WTCG.BI.DataOnlyPatching
