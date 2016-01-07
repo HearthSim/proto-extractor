@@ -657,6 +657,9 @@ public class MethodWalker {
 		Explored.Add(ins.Offset);
 
 		switch (ins.OpCode.Code) {
+		case Code.Ldnull:
+			stack.Add("null");
+			break;
 		case Code.Ldc_I4:
 		case Code.Ldc_R4:
 		case Code.Ldstr:
@@ -689,9 +692,30 @@ public class MethodWalker {
 			var arr = stack.Pop();
 			stack.Add(String.Format("{0}[{1}]", arr, idx));
 		} break;
-		case Code.Newobj:
-			stack.Add(String.Format("new {0}()",
-				(ins.Operand as MethodReference).DeclaringType.Name));
+		case Code.Ldftn:
+			stack.Add(String.Format("&({0})", ins.Operand));
+			break;
+		case Code.Newobj: {
+			var mr = ins.Operand as MethodReference;
+			var numParam = mr.Parameters.Count;
+			var stackIdx = stack.Count - numParam;
+			var args = stack.GetRange(stackIdx, numParam);
+			stack.RemoveRange(stackIdx, numParam);
+			var callString = String.Format("new {0}({1})",
+				mr.DeclaringType.Name, String.Join(", ", args));
+			stack.Add(callString);
+			if (OnCall == null) break;
+			args.Insert(0, "this");
+			OnCall(new CallInfo {
+				Conditions = new List<Condition>(conditions),
+				Method = mr,
+				Arguments = args,
+				String = callString
+			});
+		} break;
+		case Code.Newarr:
+			stack.Add(String.Format("new {0}[{1}]",
+				(ins.Operand as TypeDefinition).FullName, stack.Pop()));
 			break;
 		case Code.Brfalse: {
 			var lhs = stack.Pop().ToString();
@@ -755,15 +779,21 @@ public class MethodWalker {
 		case Code.Br:
 			Explore((ins.Operand as Instruction).Offset, stack, conditions);
 			return;
-		case Code.Stfld:
+		case Code.Stfld: {
 			var arg = stack.Pop().ToString();
+			/*var obj = */stack.Pop();
 			if (OnStore == null) break;
 			OnStore(new StoreInfo {
 				Conditions = new List<Condition>(conditions),
 				Field = ins.Operand as FieldReference,
 				Argument = arg,
 			});
-			break;
+		} break;
+		case Code.Stelem_Ref: {
+			/*var val = */stack.Pop();
+			/*var idx = */stack.Pop();
+			/*var arr = */stack.Pop();
+		} break;
 		case Code.Mul: {
 			var rhs = stack.Pop().ToString();
 			var lhs = stack.Pop().ToString();
