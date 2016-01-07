@@ -241,7 +241,6 @@ class ProtobufDecompiler {
 	}
 
 	TypeProcessor processor;
-	List<FileNode> files = new List<FileNode>();
 	public ProtobufDecompiler() {
 	}
 }
