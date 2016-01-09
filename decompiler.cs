@@ -125,6 +125,13 @@ class ProtobufDecompiler {
 				messageFile[type.Text] = fileName;
 			}
 		}
+
+		// Define "method_id" extension for identifying RPC methods.
+		var methodIdExtension = new ExtendNode(new TypeName(
+			"google.protobuf", "MethodOptions"));
+		methodIdExtension.Fields.Add(new FieldNode(
+			"method_id", FieldLabel.Optional, FieldType.UInt32, 50000));
+		fileNodes["bnet/rpc"].Types.Add(methodIdExtension);
 	}
 
 	// map from filename to filenode
@@ -140,7 +147,11 @@ class ProtobufDecompiler {
 			foreach (var m in fileNode.Types) {
 				if (m is IImportUser) {
 					foreach (var i in (m as IImportUser).GetImports()) {
-						files.Add(messageFile[i.Text]);
+						var resolvedType = i.Text;
+						files.Add(
+							resolvedType.StartsWith(".google.protobuf.")
+							? "google/protobuf/descriptor"
+							: messageFile[resolvedType]);
 					}
 				}
 			}
@@ -532,6 +543,7 @@ class SilentOrbitTypeProcessor : TypeProcessor {
 						var methodName = fullMethodName.Substring(fullMethodName.LastIndexOf('.') + 1);
 						var argType = new TypeName("unknown", "Unknown");
 						var rpc = new RPCNode(methodName, argType, retType);
+						rpc.Options.Add("(method_id)", info.Arguments[2].ToString());
 						if (service != null) service.Methods.Add(rpc);
 						retType = default(TypeName);
 					}

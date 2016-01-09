@@ -370,7 +370,9 @@ public class ServiceNode : ILanguageNode, IImportUser {
 		get {
 			var result = String.Format("service {0} {{\n", Name.Name);
 			foreach (var method in Methods) {
-				result += "\t" + method.Text;
+				foreach (var line in method.Text.Split('\n'))
+					if (line.Trim().Length != 0)
+						result += "\t" + line + "\n";
 			}
 			result += "}\n";
 			return result;
@@ -420,8 +422,18 @@ public class ServiceNode : ILanguageNode, IImportUser {
 public class RPCNode : ILanguageNode {
 	public string Text {
 		get {
-			return String.Format("rpc {0} ({1}) returns ({2});\n",
+			var result = String.Format("rpc {0} ({1}) returns ({2})",
 				Name, RequestTypeName.Text, ResponseTypeName.Text);
+			if (Options.Count == 0) {
+				result += ";\n";
+			} else {
+				result += " {\n";
+				foreach (var item in Options) {
+					result += String.Format("\toption {0} = {1};\n", item.Key, item.Value);
+				}
+				result += "}\n";
+			}
+			return result;
 		}
 	}
 
@@ -443,6 +455,7 @@ public class RPCNode : ILanguageNode {
 	public string Name;
 	public TypeName RequestTypeName;
 	public TypeName ResponseTypeName;
+	public IDictionary<string, string> Options;
 
 	public RPCNode(string name, TypeName requestName, TypeName responseName) {
 		Name = name;
@@ -451,5 +464,6 @@ public class RPCNode : ILanguageNode {
 		//RequestTypeName = requestName;
 		RequestTypeName = new TypeName("bnet.protocol", "NoData");
 		ResponseTypeName = responseName;
+		Options = new SortedDictionary<string, string>();
 	}
 }
