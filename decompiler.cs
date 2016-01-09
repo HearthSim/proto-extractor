@@ -211,7 +211,7 @@ class ProtobufDecompiler {
 				field.TypeName.Package = packageMap[messageFile[baseType]];
 			}
 		}
-		var extends = new Dictionary<TypeName, List<FieldNode>>();
+		var extends = new Dictionary<TypeName, ExtendNode>();
 		foreach (var pair in message.Extends) {
 			var type = pair.Key;
 			var baseType = String.Format(".{0}.{1}",
@@ -219,7 +219,7 @@ class ProtobufDecompiler {
 				type.Name.Split('.').First());
 			type.Package = packageMap[messageFile[baseType]];
 			extends.Add(type, pair.Value);
-			foreach (var field in pair.Value) {
+			foreach (var field in pair.Value.Fields) {
 				type = field.TypeName;
 				if (!String.IsNullOrEmpty(type.Package)) {
 					// update package:

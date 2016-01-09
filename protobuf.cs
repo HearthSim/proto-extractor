@@ -146,8 +146,8 @@ public class ImportNode : ILanguageNode {
 	}
 }
 
-// Only supports messages, fields, and enums within the message.  This leaves
-// out options, extensions, reservations, and groups.
+// Only supports messages, extensions, fields, and enums within the message.
+// This leaves out options, reservations, and groups.
 [DebuggerDisplay("<MessageNode Name={Name.Text}>")]
 public class MessageNode : ILanguageNode, IImportUser {
 	public string Text {
@@ -166,12 +166,10 @@ public class MessageNode : ILanguageNode, IImportUser {
 				result += "\n";
 			foreach (var f in Fields)
 				result += "\t" + f.Text;
-			foreach (var pair in Extends) {
-				result += String.Format("\textend {0} {{\n", pair.Key.Text);
-				foreach (var field in pair.Value)
-					result += "\t\t" + field.Text;
-				result += "\t}\n";
-			}
+			foreach (var extend in Extends.Values)
+				foreach (var line in extend.Text.Split('\n'))
+					if (line.Trim().Length != 0)
+						result += "\t" + line + "\n";
 			if (AcceptsExtensions)
 				result += "\textensions 100 to 10000;\n";
 
@@ -186,10 +184,7 @@ public class MessageNode : ILanguageNode, IImportUser {
 		foreach (var e in Enums) e.ResolveChildren(this);
 		foreach (var m in Messages) m.ResolveChildren(this);
 		foreach (var f in Fields) f.ResolveChildren(this);
-		foreach (var name in Extends.Keys) name.ResolveChildren(this);
-		foreach (var fields in Extends.Values)
-			foreach (var f in fields)
-				f.ResolveChildren(this);
+		foreach (var e in Extends.Values) e.ResolveChildren(this);
 	}
 
 	public List<TypeName> GetImports() {
@@ -204,7 +199,9 @@ public class MessageNode : ILanguageNode, IImportUser {
 		foreach (var f in Fields)
 			if (f.Type == FieldType.Message || f.Type == FieldType.Enum)
 				result.Add(f.TypeName);
-		foreach (var e in Extends.Keys) result.Add(e);
+		foreach (var e in Extends.Values)
+			foreach (var i in e.GetImports())
+				result.Add(i);
 		return result
 			.Where(x => !alreadyHere.Contains(x))
 			// Lop off any subtyping, because we only care about the containing message:
@@ -215,7 +212,7 @@ public class MessageNode : ILanguageNode, IImportUser {
 	public List<EnumNode> Enums;
 	public List<MessageNode> Messages;
 	public List<FieldNode> Fields;
-	public Dictionary<TypeName, List<FieldNode>> Extends;
+	public Dictionary<TypeName, ExtendNode> Extends;
 	public TypeName Name;
 	public bool AcceptsExtensions;
 
@@ -224,13 +221,13 @@ public class MessageNode : ILanguageNode, IImportUser {
 		Enums = new List<EnumNode>();
 		Messages = new List<MessageNode>();
 		Fields = new List<FieldNode>();
-		Extends = new Dictionary<TypeName, List<FieldNode>>();
+		Extends = new Dictionary<TypeName, ExtendNode>();
 	}
 
 	public void AddExtend(TypeName target, FieldNode field) {
 		if (!Extends.ContainsKey(target))
-			Extends[target] = new List<FieldNode>();
-		Extends[target].Add(field);
+			Extends[target] = new ExtendNode(target);
+		Extends[target].Fields.Add(field);
 	}
 }
 
@@ -258,6 +255,45 @@ public class EnumNode : ILanguageNode {
 	public EnumNode(TypeName name) {
 		Name = name;
 		Entries = new List<Tuple<string, int>>();
+	}
+}
+
+// A customization by extension.
+public class ExtendNode : ILanguageNode, IImportUser {
+	public string Text {
+		get {
+			var result = String.Format("extend {0} {{\n", Target.Text);
+			foreach (var field in Fields)
+				result += "\t" + field.Text;
+			result += "}\n";
+			return result;
+		}
+	}
+
+	public ILanguageNode Parent { get; private set; }
+
+	public void ResolveChildren(ILanguageNode parent = null) {
+		Parent = parent;
+		// Pass parent since the extension itself is not a scope.
+		Target.ResolveChildren(parent);
+		foreach (var f in Fields) f.ResolveChildren(parent);
+	}
+
+	public List<TypeName> GetImports() {
+		var result = new HashSet<TypeName>();
+		result.Add(Target);
+		foreach (var f in Fields)
+			if (f.Type == FieldType.Message || f.Type == FieldType.Enum)
+				result.Add(f.TypeName);
+		return result.Select(x => x.OuterType).ToList();
+	}
+
+	public TypeName Target;
+	public List<FieldNode> Fields;
+
+	public ExtendNode(TypeName target) {
+		Target = target;
+		Fields = new List<FieldNode>();
 	}
 }
 
