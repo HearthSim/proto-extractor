@@ -101,35 +101,28 @@ class ProtobufDecompiler {
 		}
 
 		foreach (var nodeList in processor.PackageNodes.Values) {
-			var first = nodeList.First();
-			var firstType = default(TypeName);
-			if (first is MessageNode) firstType = (first as MessageNode).Name;
-			if (first is ServiceNode) firstType = (first as ServiceNode).Name;
-			if (first is EnumNode) firstType = (first as EnumNode).Name;
-			var firstTypeName = firstType.Text;
-			if (!typesMap.ContainsKey(firstTypeName)) {
-				throw new Exception(String.Format(
-					"Couldn't find the first type of a package in the type map: {0}", firstTypeName));
-			}
-			var fileName = typesMap[firstTypeName];
-			var fileNode = new FileNode(fileName, firstType.Package);
-			fileNodes[fileName] = fileNode;
-
-			var onFirst = true;
+			string fileName = null;
+			FileNode fileNode = null;
 			foreach (var node in nodeList) {
 				var type = default(TypeName);
 				if (node is MessageNode) type = (node as MessageNode).Name;
 				if (node is ServiceNode) type = (node as ServiceNode).Name;
 				if (node is EnumNode) type = (node as EnumNode).Name;
 				var typeName = type.Text;
-				if (!onFirst && typesMap.ContainsKey(typeName)) {
+				if (typesMap.ContainsKey(typeName)) {
 					fileName = typesMap[typeName];
-					fileNode = new FileNode(fileName, type.Package);
-					fileNodes[fileName] = fileNode;
+					if (fileNodes.ContainsKey(fileName)) {
+						fileNode = fileNodes[fileName];
+					} else {
+						fileNode = new FileNode(fileName, type.Package);
+						fileNodes[fileName] = fileNode;
+					}
+				} else if (fileNode == null) {
+					throw new Exception(String.Format(
+						"Couldn't find the first type of a package in the type map: {0}", typeName));
 				}
 				fileNode.Types.Add(node);
 				messageFile[type.Text] = fileName;
-				onFirst = false;
 			}
 		}
 	}
