@@ -668,7 +668,7 @@ public class MethodWalker {
 
 	public void Walk() {
 		processing.Add(new OpState());
-		
+
 		while (processing.Count > 0) {
 			processing.Sort((a, b) => a.Conditions.Count - b.Conditions.Count);
 			processing.Sort((a, b) => a.Offset - b.Offset);
@@ -760,7 +760,7 @@ public class MethodWalker {
 			var tgt = (ins.Operand as Instruction).Offset;
 			var cond = new Condition(src, lhs, Comparison.IsFalse);
 			var ncond = new Condition(src, lhs, Comparison.IsTrue);
-			Branch(tgt, stack, conditions, cond, ncond); 
+			Branch(tgt, stack, conditions, cond, ncond);
 		} break;
 		case Code.Brtrue: {
 			var lhs = stack.Pop().ToString();
