@@ -236,6 +236,8 @@ public class EnumNode : ILanguageNode {
 	public string Text {
 		get {
 			var result = String.Format("enum {0} {{\n", Name.Final);
+			if (HasAliases)
+				result += "\toption allow_alias = true;\n";
 			foreach (var tuple in Entries) {
 				result += String.Format("\t{0} = {1};\n", tuple.Item1, tuple.Item2);
 			}
@@ -247,6 +249,14 @@ public class EnumNode : ILanguageNode {
 
 	public void ResolveChildren(ILanguageNode parent) {
 		Parent = parent;
+	}
+
+	public bool HasAliases
+	{
+		get
+		{
+			return Entries.Select(x => x.Item2).GroupBy(x => x).OrderByDescending(x => x.Count()).FirstOrDefault().Count() > 1;
+		}
 	}
 
 	public List<Tuple<string, int>> Entries;
