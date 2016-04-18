@@ -47,7 +47,7 @@ static class Extractor {
 		decompiler.ProcessTypes(allTypes);
 		decompiler.WriteProtos(extractDir);
 		if (goDir != null) {
-			decompiler.WriteGoProtos(goDir, "github.com/HearthSim/hs-proto/go/");
+			decompiler.WriteGoProtos(goDir, "github.com/HearthSim/hs-proto-go/");
 		}
 	}
 }
