@@ -78,6 +78,9 @@ public struct TypeName : ILanguageNode {
 	}
 	public TypeName OuterType {
 		get {
+			if (Name == null)
+				return this;
+
 			var i = Name.IndexOf('.');
 			return i < 0 ? this : new TypeName(Package, Name.Substring(0, i));
 		}
