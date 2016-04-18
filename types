@@ -52,6 +52,6 @@ bnet/resource_service			.bnet.protocol.resources.Resources
 pegasus/patching				.WTCG.BI.DataOnlyPatching
 pegasus/bobnet					.BobNetProto.PACKETTYPES
 pegasus/game					.PegasusGame.Tag
-pegasus/shared					.PegasusShared.CardDef
+pegasus/shared					.PegasusShared.DatabaseDeckCard
 pegasus/util					.PegasusUtil.ClientOption
 pegasus/spectator				.SpectatorProto.JoinInfo
