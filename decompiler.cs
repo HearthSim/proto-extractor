@@ -468,7 +468,7 @@ class SilentOrbitTypeProcessor : TypeProcessor {
 					fieldType = FieldType.Bytes;
 					break;
 				default:
-					Console.WriteLine("unresolved type");
+					Console.WriteLine("unresolved type for field '" + name + "' in " + result.Name.Text);
 					break;
 				}
 			} else if (info.Method.DeclaringType.Name == "BinaryWriter") {
@@ -494,7 +494,7 @@ class SilentOrbitTypeProcessor : TypeProcessor {
 				}
 			}
 			if (fieldType == FieldType.Invalid) {
-				Console.WriteLine("unresolved type");
+				Console.WriteLine("unresolved type for field '" + name + "' in " + result.Name.Text);
 			}
 
 			var field = new FieldNode(name, label, fieldType, tag);
