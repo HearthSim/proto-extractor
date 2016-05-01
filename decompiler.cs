@@ -10,16 +10,30 @@ using System.IO;
 
 class ProtobufDecompiler {
 	public void ProcessTypes(IEnumerable<TypeDefinition> types, string typesMapFile) {
+		// A map from type name to its file
+		var typesMap = new Dictionary<string, string>();
+		using (var typesMapReader = new StreamReader(typesMapFile)) {
+			while (!typesMapReader.EndOfStream) {
+				var line = typesMapReader.ReadLine().Trim();
+				if (line.Length == 0) continue;
+				if (line[0] == '#') continue;
+				var parts = line.Split(new[] { "\t" }, StringSplitOptions.RemoveEmptyEntries);
+				typesMap[parts[1]] = parts[0];
+			}
+		}
+
+		// Find proto type
 		if (types.Any(x => x.Name == "IProtoBuf" || x.Name == "ServiceDescriptor")) {
 			Console.WriteLine("detected SilentOrbit protos");
-			processor = new SilentOrbitTypeProcessor();
+			processor = new SilentOrbitTypeProcessor(typesMap);
 		} else {
 			// We could detect based on subclassing GeneratedMessage*, but no
 			// point unless we have more than 2 types of protogens.
 			Console.WriteLine("assuming Google protos");
-			processor = new GoogleTypeProcessor();
+			processor = new GoogleTypeProcessor(typesMap);
 		}
 
+		// Process types
 		foreach (var type in types) {
 			processor.Process(type);
 		}
@@ -54,49 +68,6 @@ class ProtobufDecompiler {
 			}
 		}
 
-		// Move extensions to their sources:
-		var blacklistedExtensionSources = new[]{
-			// These types aren't allowed to have extensions, because they were
-			// made by an intern or something:
-			".PegasusShared.ScenarioDbRecord"
-		};
-		foreach (var nodeList in processor.PackageNodes.Values) {
-			var messages = nodeList
-				.Where(x => x is MessageNode)
-				.Select(x => x as MessageNode)
-				.Where(x => !blacklistedExtensionSources.Contains(x.Name.Text));
-			foreach (var message in messages) {
-				var extensions = message.Fields
-					.Where(x => x.Label != FieldLabel.Required &&
-						x.Tag >= 100 &&
-						!blacklistedExtensionSources.Contains(x.TypeName.Text))
-					.ToList();
-				foreach (var extField in extensions) {
-					message.Fields.Remove(extField);
-					message.AcceptsExtensions = true;
-					var target = message.Name;
-					var source = extField.TypeName;
-					if (String.IsNullOrEmpty(source.Package)) {
-						throw new Exception("extension field is not a message");
-					}
-					var sourceNode = allMessages[source.Text];
-					sourceNode.AddExtend(target, extField);
-				}
-			}
-		}
-
-		// A map from type name to its file
-		var typesMap = new Dictionary<string, string>();
-		using (var typesMapReader = new StreamReader(typesMapFile)) {
-			while (!typesMapReader.EndOfStream) {
-				var line = typesMapReader.ReadLine().Trim();
-				if (line.Length == 0) continue;
-				if (line[0] == '#') continue;
-				var parts = line.Split(new[]{"\t"}, StringSplitOptions.RemoveEmptyEntries);
-				typesMap[parts[1]] = parts[0];
-			}
-		}
-
 		foreach (var nodeList in processor.PackageNodes.Values) {
 			string fileName = null;
 			FileNode fileNode = null;
@@ -124,11 +95,47 @@ class ProtobufDecompiler {
 		}
 
 		// Define "method_id" extension for identifying RPC methods.
-		var methodIdExtension = new ExtendNode(new TypeName(
-			"google.protobuf", "MethodOptions"));
+		/* var methodIdExtension = new ExtendNode(new TypeName(
+			"google.protobuf", "MethodOptions"), "");
 		methodIdExtension.Fields.Add(new FieldNode(
-			"method_id", FieldLabel.Optional, FieldType.UInt32, 50000));
-		fileNodes["bnet/rpc"].Types.Add(methodIdExtension);
+			"method_id", FieldLabel.Optional, FieldType.UInt32, 50000, ""));
+		fileNodes["bnet/rpc"].Types.Add(methodIdExtension); */
+
+		// Move extensions to their sources:
+		var blacklistedExtensionSources = new[]{
+			// These types aren't allowed to have extensions, because they
+			// will create circular references
+			".PegasusShared.ScenarioDbRecord",
+			".PegasusShared.DeckRulesetDbRecord",
+			".PegasusShared.SubsetCardListDbRecord",
+
+			// These types aren't allowed because they use record numbers >100 but not as extensions
+			".PegasusShared.TavernBrawlSpec"
+		};
+		foreach (var nodeList in processor.PackageNodes.Values) {
+			var messages = nodeList
+				.Where(x => x is MessageNode)
+				.Select(x => x as MessageNode)
+				.Where(x => !blacklistedExtensionSources.Contains(x.Name.Text));
+			foreach (var message in messages) {
+				var extensions = message.Fields
+					.Where(x => x.Label != FieldLabel.Required &&
+						x.Tag >= 100 &&
+						!blacklistedExtensionSources.Contains(x.TypeName.Text))
+					.ToList();
+				foreach (var extField in extensions) {
+					message.Fields.Remove(extField);
+					message.AcceptsExtensions = true;
+					var target = message.Name;
+					var source = extField.TypeName;
+					if (String.IsNullOrEmpty(source.Package)) {
+						throw new Exception("extension field is not a message");
+					}
+					var sourceNode = allMessages[source.Text];
+					sourceNode.AddExtend(target, extField, messageFile[target.Text]);
+				}
+			}
+		}
 	}
 
 	// map from filename to filenode
@@ -251,14 +258,17 @@ class ProtobufDecompiler {
 // Represents a type capable of processing c# types generated by protoc and
 // decompiling them into protobuf type nodes.
 abstract class TypeProcessor {
+	protected Dictionary<string, string> typesMap;
+
 	public abstract void Process(TypeDefinition type);
 
 	public abstract void Complete();
 
 	public Dictionary<string, List<ILanguageNode>> PackageNodes { get; set; }
 
-	public TypeProcessor() {
+	public TypeProcessor(Dictionary<string, string> typesMap) {
 		PackageNodes = new Dictionary<string, List<ILanguageNode>>();
+		this.typesMap = typesMap;
 	}
 
 	protected void AddPackageNode(string package, ILanguageNode node) {
@@ -272,6 +282,8 @@ abstract class TypeProcessor {
 // Processes protobuf types generated by SilentOrbit's protobuf implementation,
 // found at <https://github.com/hultqvist/ProtoBuf>
 class SilentOrbitTypeProcessor : TypeProcessor {
+	public SilentOrbitTypeProcessor(Dictionary<string, string> typesMap) : base(typesMap) { }
+
 	public override void Process(TypeDefinition type) {
 		// Since a protobuf package corresponds to a C# namespaces, no generated
 		// protobuf classes exist in the root namespace.
@@ -493,14 +505,16 @@ class SilentOrbitTypeProcessor : TypeProcessor {
 			if (fieldType == FieldType.Invalid) {
 				Console.WriteLine("unresolved type for field '" + name + "' in " + result.Name.Text);
 			}
-
-			var field = new FieldNode(name, label, fieldType, tag);
-			field.TypeName = subType;
-			field.Packed = packed;
-			if (defaults.ContainsKey(name)) {
-				field.DefaultValue = defaults[name];
+			else {
+				var field = new FieldNode(name, label, fieldType, tag,
+					(subType.Name != null && typesMap.ContainsKey(subType.OuterType.Text) ? typesMap[subType.OuterType.Text] : ""));
+				field.TypeName = subType;
+				field.Packed = packed;
+				if (defaults.ContainsKey(name)) {
+					field.DefaultValue = defaults[name];
+				}
+				result.Fields.Add(field);
 			}
-			result.Fields.Add(field);
 		};
 		serializeWalker.Walk();
 
@@ -571,6 +585,8 @@ class SilentOrbitTypeProcessor : TypeProcessor {
 // Processes protobuf types generated by the protobuf-csharp-port project,
 // which is currently owned by Google and was originally created by Jon Skeet.
 class GoogleTypeProcessor : TypeProcessor {
+	public GoogleTypeProcessor(Dictionary<string, string> typesMap) : base(typesMap) { }
+
 	public override void Process(TypeDefinition type) {
 		return;
 	}

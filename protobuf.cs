@@ -227,9 +227,9 @@ public class MessageNode : ILanguageNode, IImportUser {
 		Extends = new Dictionary<TypeName, ExtendNode>();
 	}
 
-	public void AddExtend(TypeName target, FieldNode field) {
+	public void AddExtend(TypeName target, FieldNode field, string fileMapping) {
 		if (!Extends.ContainsKey(target))
-			Extends[target] = new ExtendNode(target);
+			Extends[target] = new ExtendNode(target, fileMapping);
 		Extends[target].Fields.Add(field);
 	}
 }
@@ -275,7 +275,10 @@ public class EnumNode : ILanguageNode {
 public class ExtendNode : ILanguageNode, IImportUser {
 	public string Text {
 		get {
-			var result = String.Format("extend {0} {{\n", Target.Text);
+			var result = String.Format("extend {0} {{\n", (
+				FileMapping.Length > 0 ? FileMapping.Substring(FileMapping.IndexOf("/") + 1) + "."
+				+ Target.Text.Substring(("." + Target.Text).LastIndexOf(".")) : Target.Text)
+			);
 			foreach (var field in Fields)
 				result += "\t" + field.Text;
 			result += "}\n";
@@ -303,10 +306,12 @@ public class ExtendNode : ILanguageNode, IImportUser {
 
 	public TypeName Target;
 	public List<FieldNode> Fields;
+	public string FileMapping;
 
-	public ExtendNode(TypeName target) {
+	public ExtendNode(TypeName target, string fileMapping) {
 		Target = target;
 		Fields = new List<FieldNode>();
+		FileMapping = fileMapping;
 	}
 }
 
@@ -337,7 +342,13 @@ public class FieldNode : ILanguageNode {
 			var label = Enum.GetName(typeof(FieldLabel), Label).ToLower();
 			var type = Enum.GetName(typeof(FieldType), Type).ToLower();
 			if (Type == FieldType.Message || Type == FieldType.Enum) {
-				type = TypeName.Text;
+
+				if (FileMapping.Length > 0 && TypeName.Text.Contains(".")) {
+					type = FileMapping.Substring(FileMapping.IndexOf("/") + 1) + "."
+							+ TypeName.Text.Substring(("." + TypeName.Text).LastIndexOf("."));
+				} else {
+					type = TypeName.Text;
+				}
 			}
 			var result = String.Format("{0} {1} {2} = {3}",
 				label, type, Name, Tag);
@@ -362,6 +373,7 @@ public class FieldNode : ILanguageNode {
 	public FieldType Type;
 	public string Name;
 	public int Tag;
+	public string FileMapping;
 	// used when Type is Enum or Message
 	public TypeName TypeName;
 	// [default = this], shown if not null
@@ -369,11 +381,12 @@ public class FieldNode : ILanguageNode {
 	// shown if not false
 	public bool Packed;
 
-	public FieldNode(string name, FieldLabel label, FieldType type, int tag) {
+	public FieldNode(string name, FieldLabel label, FieldType type, int tag, string fileMapping) {
 		Label = label;
 		Type = type;
 		Name = name;
 		Tag = tag;
+		FileMapping = fileMapping;
 	}
 }
 
