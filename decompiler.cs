@@ -9,7 +9,7 @@ using System.Reflection;
 using System.IO;
 
 class ProtobufDecompiler {
-	public void ProcessTypes(IEnumerable<TypeDefinition> types) {
+	public void ProcessTypes(IEnumerable<TypeDefinition> types, string typesMapFile) {
 		if (types.Any(x => x.Name == "IProtoBuf" || x.Name == "ServiceDescriptor")) {
 			Console.WriteLine("detected SilentOrbit protos");
 			processor = new SilentOrbitTypeProcessor();
@@ -87,9 +87,6 @@ class ProtobufDecompiler {
 
 		// A map from type name to its file
 		var typesMap = new Dictionary<string, string>();
-		var currAssembly = Assembly.GetExecutingAssembly();
-		var typesMapName = currAssembly.GetManifestResourceNames()[0];
-		using (var typesMapFile = currAssembly.GetManifestResourceStream(typesMapName))
 		using (var typesMapReader = new StreamReader(typesMapFile)) {
 			while (!typesMapReader.EndOfStream) {
 				var line = typesMapReader.ReadLine().Trim();

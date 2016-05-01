@@ -5,13 +5,15 @@ using Mono.Cecil.Rocks;
 
 static class Extractor {
 	static void Main(string[] args) {
-		if (args.Length == 0) {
-			Console.Write("Hearthstone Protobuf Extractor --- ");
-			Console.WriteLine("Usage: proto-extractor [options] [input dlls...]");
+		if (args.Length < 2) {
+			Console.WriteLine("Hearthstone Protobuf Extractor --- ");
+			Console.WriteLine("Usage: proto-extractor [options] [types file] [input dlls...]");
 			Console.WriteLine("    --output, -o  Directory where .proto files are written");
+			Console.WriteLine("    --go-out, -g  Directory where Go-friendly .proto files are written");
 			return;
 		}
 
+		var typesFile = "";
 		var extractDir = ".";
 		string goDir = null;
 		var assemblies = new List<string>();
@@ -34,8 +36,21 @@ static class Extractor {
 					}
 				}
 			} else {
-				assemblies.Add(arg);
+				if (typesFile.Length == 0)
+					typesFile = arg;
+				else
+					assemblies.Add(arg);
 			}
+		}
+
+		if (typesFile == "") {
+			Console.WriteLine("No types file specified");
+			return;
+		}
+
+		if (assemblies.Count == 0) {
+			Console.WriteLine("No DLL files specified");
+			return;
 		}
 
 		var allTypes = new List<TypeDefinition>();
@@ -44,7 +59,7 @@ static class Extractor {
 		}
 
 		var decompiler = new ProtobufDecompiler();
-		decompiler.ProcessTypes(allTypes);
+		decompiler.ProcessTypes(allTypes, typesFile);
 		decompiler.WriteProtos(extractDir);
 		if (goDir != null) {
 			decompiler.WriteGoProtos(goDir, "github.com/HearthSim/hs-proto-go/");
