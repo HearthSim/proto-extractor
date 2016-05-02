@@ -174,7 +174,9 @@ public class MessageNode : ILanguageNode, IImportUser {
 					if (line.Trim().Length != 0)
 						result += "\t" + line + "\n";
 			if (AcceptsExtensions)
-				result += "\textensions " + ExtendLowerBound + " to " + ExtendUpperBound + ";\n";
+				result += "\textensions "
+					+ (FieldUpperBound < 100? 100 : ExtendLowerBound) + " to "
+					+ (FieldUpperBound > ExtendUpperBound? ExtendUpperBound : 10000) + ";\n";
 
 			return result + "}\n";
 		}
@@ -220,6 +222,12 @@ public class MessageNode : ILanguageNode, IImportUser {
 	public bool AcceptsExtensions;
 	public int ExtendLowerBound;
 	public int ExtendUpperBound;
+
+	public int FieldUpperBound {
+		get {
+			return Fields.Max(x => x.Tag);
+		}
+	}
 
 	public MessageNode(TypeName name) {
 		Name = name;
