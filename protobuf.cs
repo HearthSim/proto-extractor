@@ -174,7 +174,7 @@ public class MessageNode : ILanguageNode, IImportUser {
 					if (line.Trim().Length != 0)
 						result += "\t" + line + "\n";
 			if (AcceptsExtensions)
-				result += "\textensions 100 to 10000;\n";
+				result += "\textensions " + ExtendLowerBound + " to " + ExtendUpperBound + ";\n";
 
 			return result + "}\n";
 		}
@@ -218,6 +218,8 @@ public class MessageNode : ILanguageNode, IImportUser {
 	public Dictionary<TypeName, ExtendNode> Extends;
 	public TypeName Name;
 	public bool AcceptsExtensions;
+	public int ExtendLowerBound;
+	public int ExtendUpperBound;
 
 	public MessageNode(TypeName name) {
 		Name = name;
@@ -225,6 +227,8 @@ public class MessageNode : ILanguageNode, IImportUser {
 		Messages = new List<MessageNode>();
 		Fields = new List<FieldNode>();
 		Extends = new Dictionary<TypeName, ExtendNode>();
+		ExtendLowerBound = int.MaxValue;
+		ExtendUpperBound = int.MinValue;
 	}
 
 	public void AddExtend(TypeName target, FieldNode field) {

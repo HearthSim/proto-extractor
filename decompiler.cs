@@ -74,13 +74,20 @@ class ProtobufDecompiler {
 				foreach (var extField in extensions) {
 					message.Fields.Remove(extField);
 					message.AcceptsExtensions = true;
+					message.ExtendLowerBound = Math.Min(message.ExtendLowerBound, extField.Tag);
+					message.ExtendUpperBound = Math.Max(message.ExtendUpperBound, extField.Tag);
+
 					var target = message.Name;
 					var source = extField.TypeName;
+					// Extensions which are primitive types
 					if (String.IsNullOrEmpty(source.Package)) {
-						throw new Exception("extension field is not a message");
+						message.AddExtend(target, extField);
 					}
-					var sourceNode = allMessages[source.Text];
-					sourceNode.AddExtend(target, extField);
+					// Extensions which are messages in other files
+					else {
+						var sourceNode = allMessages[source.Text];
+						sourceNode.AddExtend(target, extField);
+					}
 				}
 			}
 		}
