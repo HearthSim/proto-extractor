@@ -42,13 +42,16 @@
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <ItemGroup>
-    <Compile Include="extractor.cs" />
-    <Compile Include="protobuf.cs" />
-    <Compile Include="decompiler.cs" />
+    <Compile Include="src\Analyzer.cs" />
+    <Compile Include="src\ast\ProtoCompiler.cs" />
+    <Compile Include="src\ast\Types.cs" />
+    <Compile Include="src\ast\Compiler.cs" />
+    <Compile Include="src\extractor\Extractor.cs" />
+    <Compile Include="src\SeeSharp\MethodWalker.cs" />
+    <Compile Include="src\extractor\Types.cs" />
+    <Compile Include="src\Program.cs" />
+    <Compile Include="src\SeeSharp\CSAnalyzer.cs" />
+    <Compile Include="src\SeeSharp\CSExtractor.cs" />
   </ItemGroup>
-  <ItemGroup>
-    <Content Include="types">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
+  <ItemGroup />
 </Project>
