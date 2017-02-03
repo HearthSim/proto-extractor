@@ -150,11 +150,6 @@ namespace protoextractor.analyzer.c_sharp
                         irClass.IsPrivate = true;
                         irClass.Parent = _classCache[parent];
 
-                        if (irClass.Parent is IRNamespace)
-                        {
-                            var ok = true;
-                        }
-
                         // Mark a reference between the parent and this class.
                         _classCache[parent].PrivateTypes.Add(irClass);
                     }
