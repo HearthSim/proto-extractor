@@ -1,3 +1,5 @@
 bin
 *.userprefs
 
+reference/
+obj/
