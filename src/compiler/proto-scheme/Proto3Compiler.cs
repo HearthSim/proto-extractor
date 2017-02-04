@@ -11,9 +11,11 @@ namespace protoextractor.compiler.proto_scheme
     /* Protobuffer example file
          * 
          *  Syntax MUST be first line of the file!
-         *  We do not declare package names.
+         *  We do declare package names.
          *  
          *  syntax = "proto2";
+         *  package ns.subns;
+         *  
          *  import "myproject/other_protos.proto";
          *  
          *  enum EnumAllowingAlias {
@@ -40,6 +42,8 @@ namespace protoextractor.compiler.proto_scheme
               optional Corpus corpus = 4 [default = UNIVERSAL];
             }
 
+          * Each namespace maps to ONE package!
+          * 
         */
 
     class ProtoSchemeCompiler : DefaultCompiler
@@ -48,25 +52,14 @@ namespace protoextractor.compiler.proto_scheme
         private static string _EndSpacer = "//----- End {0} -----";
         private static string _Spacer = "//------------------------------";
 
-        // The name of the file which will contain the whole dumped IR program.
-        private static string _dumpFileName = "dump.proto";
-
-        // If TRUE, this object will dump the whole program to a single file.
-        public bool DumpMode { get; set; }
-
         private int _incrementCounter;
+
+        // Mapping of all namespace objects to their location on disk.
+        private Dictionary<IRNamespace, string> _NSLocationCache;
 
         public ProtoSchemeCompiler(IRProgram program) : base(program)
         {
-            DumpMode = false;
             _incrementCounter = 0;
-        }
-
-        // Converts given namespace objects into paths.
-        // The returned string is a relative path to the set '_path' property!
-        public List<string> NamespacesToFileNames(List<IRNamespace> nsList)
-        {
-            return nsList.Select((ns, res) => ns.FullName + ".proto").ToList();
         }
 
         public override void Compile()
@@ -80,14 +73,16 @@ namespace protoextractor.compiler.proto_scheme
 
             // Process file names.
             // This already includes the proto extension!
-            List<string> nsFileNames = NamespacesToFileNames(_program.Namespaces);
+            _NSLocationCache = ProtoHelper.NamespacesToFileNames(_program.Namespaces, PackageStructured);
 
             // Create/Open files for writing.
-            foreach (var nsFileName in nsFileNames)
+            foreach (var irNS in _NSLocationCache.Keys)
             {
-                // Get target namespace.
-                var nsName = Path.GetFileNameWithoutExtension(nsFileName);
-                var irNS = _program.Namespaces.First(ns => ns.FullName.Equals(nsName));
+                // Get filename of current namespace.
+                var nsFileName = _NSLocationCache[irNS];
+                // Make sure directory structure exists, before creating/writing file.
+                var folderStruct = Path.Combine(_path, Path.GetDirectoryName(nsFileName));
+                Directory.CreateDirectory(folderStruct);
 
                 // Resolve all imports.
                 var refSet = ResolveNSReferences(irNS);
@@ -158,7 +153,8 @@ namespace protoextractor.compiler.proto_scheme
             w.WriteLine("syntax = \"proto3\";");
             if (ns != null)
             {
-                w.WriteLine("package {0};", ns.ShortName);
+                var nsPackage = ProtoHelper.ResolvePackageName(ns, _NSLocationCache);
+                w.WriteLine("package {0};", nsPackage);
             }
             w.WriteLine();
             w.WriteLine("// Protobuffer decompiler");
@@ -168,15 +164,16 @@ namespace protoextractor.compiler.proto_scheme
 
         private void WriteImports(List<IRNamespace> referencedNamespaces, TextWriter w)
         {
-            // Get filenames for the referenced namespaces.
-            var nsFileNames = NamespacesToFileNames(referencedNamespaces);
+            // Get filenames for the referenced namespaces, from cache.
+            var nsFileNames = _NSLocationCache.Where(kv => referencedNamespaces.Contains(kv.Key)).Select(kv => kv.Value);
             // Order filenames in ascending order.
             var orderedImports = nsFileNames.OrderBy(x => x);
 
             foreach (var import in orderedImports)
             {
                 // import "myproject/other_protos.proto";
-                w.WriteLine("import \"{0}\";", import);
+                // IMPORTANT: Forward slashes!
+                w.WriteLine("import \"{0}\";", import.Replace(Path.DirectorySeparatorChar, '/'));
             }
             // End with additionall newline
             w.WriteLine();
@@ -257,10 +254,9 @@ namespace protoextractor.compiler.proto_scheme
             foreach (var prop in c.Properties)
             {
                 var opts = prop.Options;
-                // No default value is incorporated!
-                // TODO ^^^
+                // Proto3 syntax does not provide default values!
                 var label = ProtoHelper.FieldLabelToString(opts.Label);
-                var type = ProtoHelper.TypeTostring(prop.Type, c, prop.ReferencedType);
+                var type = ProtoHelper.TypeTostring(prop.Type, c, prop.ReferencedType, _NSLocationCache);
                 var tag = opts.PropertyOrder.ToString();
 
                 // A property can only be packed if it's flag is set AND
@@ -331,141 +327,6 @@ namespace protoextractor.compiler.proto_scheme
             // Remove reference to our own file.
             references.Remove(ns);
             return references;
-        }
-    }
-
-    public static class ProtoHelper
-    {
-        // This function converts string in PascalCase to snake_case
-        // eg; BatlleNet => battle_net
-        public static string PascalToSnake(this string s)
-        {
-            var chars = s.Select((c, i) => (char.IsUpper(c)) ? ("_" + c.ToString()) : c.ToString());
-            return string.Concat(chars).Trim('_').ToLower();
-        }
-
-        public static string ResolvePrivateTypeString(IRClass current, IRTypeNode reference)
-        {
-            var returnValue = "";
-            // If current and reference share the same namespace, no package name is added.
-            var curNS = GetNamespaceForType(current);
-            var refNS = GetNamespaceForType(reference);
-
-            if (curNS != refNS)
-            {
-                returnValue = returnValue + refNS.ShortName + ".";
-            }
-
-            // If reference is a private type, the public parent is added.. unless current 
-            // IS THE PUBLIC PARENT.
-            if (!IsParentOffType(current, reference))
-            {
-                if (reference.IsPrivate)
-                {
-                    // Find public parent of reference.
-                    var pubType = FindPublicParent(reference);
-                    returnValue = returnValue + pubType.ShortName + ".";
-                }
-            }
-
-            return returnValue + reference.ShortName;
-        }
-
-        // Goes up the parent chain looking for the first type that's not private.
-        public static IRProgramNode FindPublicParent(IRTypeNode type)
-        {
-            IRProgramNode checkType = type;
-            while (checkType.IsPrivate)
-            {
-                checkType = checkType.Parent;
-            }
-
-            return checkType;
-        }
-
-        // Recursively check all parents of child. If one of the parents matches 'parent',
-        // TRUE will be returned.
-        public static bool IsParentOffType(IRProgramNode parent, IRProgramNode child)
-        {
-            var p = child.Parent;
-            while (p != null)
-            {
-                if (p == parent)
-                {
-                    return true;
-                }
-
-                p = p.Parent;
-            }
-
-            return false;
-        }
-
-        // Returns the namespace object for the given object.
-        public static IRNamespace GetNamespaceForType(IRTypeNode type)
-        {
-            // Recursively call all parents until namespace is reached
-            var p = type.Parent;
-            while (p != null)
-            {
-                if (p is IRNamespace)
-                {
-                    return p as IRNamespace;
-                }
-
-                p = p.Parent;
-            }
-
-            return null;
-        }
-
-        public static string TypeTostring(PropertyTypeKind type, IRClass current, IRTypeNode reference)
-        {
-            switch (type)
-            {
-                case PropertyTypeKind.DOUBLE:
-                    return "double";
-                case PropertyTypeKind.FLOAT:
-                    return "float";
-                case PropertyTypeKind.INT32:
-                    return "int32";
-                case PropertyTypeKind.INT64:
-                    return "int64";
-                case PropertyTypeKind.UINT32:
-                    return "uint32";
-                case PropertyTypeKind.UINT64:
-                    return "uint64";
-                case PropertyTypeKind.FIXED32:
-                    return "fixed32";
-                case PropertyTypeKind.FIXED64:
-                    return "fixed64";
-                case PropertyTypeKind.BOOL:
-                    return "bool";
-                case PropertyTypeKind.STRING:
-                    return "string";
-                case PropertyTypeKind.BYTES:
-                    return "bytes";
-                case PropertyTypeKind.TYPE_REF:
-                    return ResolvePrivateTypeString(current, reference);
-                default:
-                    throw new Exception("Type not recognized!");
-            }
-        }
-
-        public static string FieldLabelToString(FieldLabel label)
-        {
-            switch (label)
-            {
-                case FieldLabel.OPTIONAL:
-                    // Proto3 syntax has an implicit OPTIONAL label.
-                    return "";
-                case FieldLabel.REPEATED:
-                    return "repeated";
-                case FieldLabel.REQUIRED:
-                    return "required";
-                default:
-                    return "";
-            }
         }
     }
 }

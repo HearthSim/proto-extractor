@@ -46,7 +46,8 @@
     <Compile Include="src\analyzer\c-sharp\TypeDefinitionComparer.cs" />
     <Compile Include="src\analyzer\DefaultAnalyzer.cs" />
     <Compile Include="src\compiler\DefaultCompiler.cs" />
-    <Compile Include="src\compiler\proto-scheme\ProtoSchemeCompiler.cs" />
+    <Compile Include="src\compiler\proto-scheme\Proto3Compiler.cs" />
+    <Compile Include="src\compiler\proto-scheme\ProtoHelper.cs" />
     <Compile Include="src\decompiler\c-sharp\ILDecompiler.cs" />
     <Compile Include="src\decompiler\c-sharp\ILTools.cs" />
     <Compile Include="src\decompiler\c-sharp\MethodWalker.cs" />

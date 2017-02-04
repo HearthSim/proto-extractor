@@ -268,22 +268,19 @@ namespace protoextractor.processing
             // This list will NEVER contain enums!
             var distincttypes = circle.Distinct().Cast<IRClass>();
 
-            // TODO: naming algorithm! (Longest commong substring)
+            // TODO: Better naming algorithm?! (Longest commong substring)
             // The longest substring between the fullnames of each type's namespace.
             // TODO: This might clash with existing namespace names! check for that..
             var allTypeNamespaceNames = circle.Select(type => _TypeNSMapper[type].FullName).ToList();
-            var newNSName = DependancyUtil.LongestmatchingSubstring(allTypeNamespaceNames);
-            var nsEndPart = "extracted";
-            if (newNSName.EndsWith("."))
-            {
-                newNSName = newNSName + nsEndPart;
-            }
-            else
-            {
-                newNSName = newNSName + "." + nsEndPart;
-            }
+            var newNSName = DependancyUtil.LongestmatchingSubstring(allTypeNamespaceNames).Trim('.');
+            // Also construct a shortname from the new namespace fullname
+            var newNSShortName = newNSName.Substring(newNSName.LastIndexOf('.') + 1);
 
-            var newNS = new IRNamespace(newNSName, newNSName)
+            var nsEndPart = ".extracted";
+            newNSName = newNSName + nsEndPart;
+            newNSShortName = newNSShortName + nsEndPart;
+
+            var newNS = new IRNamespace(newNSName, newNSShortName)
             {
                 Classes = new List<IRClass>(),
                 Enums = new List<IREnum>(),

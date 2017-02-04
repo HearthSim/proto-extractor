@@ -186,7 +186,10 @@ namespace protoextractor.analyzer.c_sharp
                 nsSet.TryGetValue(nsName, out ns);
                 if (ns == null)
                 {
-                    ns = new IRNamespace(nsName, nsName)
+                    // Construct a shortname of the last namespace part of the full name.
+                    var lastDotIdx = nsName.LastIndexOf('.');
+                    var nsShortname = (lastDotIdx != -1) ? nsName.Substring(lastDotIdx + 1) : nsName;
+                    ns = new IRNamespace(nsName, nsShortname)
                     {
                         Classes = new List<IRClass>(),
                         Enums = new List<IREnum>(),
@@ -216,7 +219,10 @@ namespace protoextractor.analyzer.c_sharp
                 nsSet.TryGetValue(nsName, out ns);
                 if (ns == null)
                 {
-                    ns = new IRNamespace(nsName, nsName)
+                    // Construct a shortname of the last namespace part of the full name.
+                    var lastDotIdx = nsName.LastIndexOf('.');
+                    var nsShortname = (lastDotIdx != -1) ? nsName.Substring(lastDotIdx + 1) : nsName;
+                    ns = new IRNamespace(nsName, nsShortname)
                     {
                         Classes = new List<IRClass>(),
                         Enums = new List<IREnum>(),
