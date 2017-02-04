@@ -22,6 +22,8 @@ namespace protoextractor
         private static string GO_absCompiledOutput = Path.GetFullPath("compiled_proto_go");
         // Output folder for compiled protobuffer files. -> PYTHON
         private static string PY_absCompiledOutput = Path.GetFullPath("compiled_proto_py");
+        // Output folder for compiled protobuffer files. -> C#
+        private static string CS_absCompiledOutput = Path.GetFullPath("compiled_proto_cs");
 
         static void Main(string[] args)
         {
@@ -53,9 +55,11 @@ namespace protoextractor
                 // Write output.
                 .Compile();
 
-            Python_TestDecompiledProtoFiles();
+            CSharp_TestDecompiledProtoFiles();
 
-            Go_TestDecompiledProtoFiles();
+            //Python_TestDecompiledProtoFiles();
+
+            //Go_TestDecompiledProtoFiles();
 
             return;
         }
@@ -72,6 +76,43 @@ namespace protoextractor
 
             // Construct arguments string for protocompiling to PYTHON output.
             string proto_args = "--proto_path=\"" + absProtoOutput + "\" --python_out=\"" + PY_absCompiledOutput + "\" "
+                + string.Join(" ", files);
+
+            // Setup protoc process..
+            Process protoc = new Process();
+            protoc.StartInfo = new ProcessStartInfo()
+            {
+                FileName = "protoc",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                Arguments = proto_args,
+            };
+            protoc.Start();
+            Console.WriteLine(proto_args);
+
+            while (!protoc.HasExited)
+            {
+                Thread.Sleep(200);
+                Console.Write(protoc.StandardOutput.ReadToEnd());
+            }
+
+            // Print all subprocess output to console.
+            Console.Write(protoc.StandardOutput.ReadToEnd());
+        }
+
+        // Actually almost the same code as Python_TestDecompiledProtoFiles(..)
+        public static void CSharp_TestDecompiledProtoFiles()
+        {
+            // All proto files are written to their respective .proto files.
+            // Collect them and launch the proto compiler!
+            string[] files = Directory.GetFiles(absProtoOutput, protoFileNameGlob, SearchOption.AllDirectories);
+            // Generate absolute paths enclosed with quotes.
+            files = files.Select(x => "\"" + Path.GetFullPath(x) + "\"").ToArray();
+            // Create folder for compiler proto files.
+            Directory.CreateDirectory(CS_absCompiledOutput);
+
+            // Construct arguments string for protocompiling to PYTHON output.
+            string proto_args = "--proto_path=\"" + absProtoOutput + "\" --csharp_out=\"" + CS_absCompiledOutput + "\" "
                 + string.Join(" ", files);
 
             // Setup protoc process..
