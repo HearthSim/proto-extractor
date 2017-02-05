@@ -46,7 +46,7 @@ namespace protoextractor.processing
                 }
             }
 
-            return longestSubstring.ToLower();
+            return longestSubstring;
         }
     }
 }

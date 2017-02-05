@@ -518,6 +518,9 @@ namespace protoextractor.processing
                 newNS.Enums.Add(irEnum);
             }
 
+            // Update fullname of the type we moved.
+            type.FullName = newNS.FullName + "." + type.ShortName;
+
             // Private types keep their public parent as parent, public types
             // which refer to their namespace as parent will get the new 
             // namespace as parent!

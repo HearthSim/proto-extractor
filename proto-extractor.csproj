@@ -46,17 +46,19 @@
     <Compile Include="src\analyzer\c-sharp\TypeDefinitionComparer.cs" />
     <Compile Include="src\analyzer\DefaultAnalyzer.cs" />
     <Compile Include="src\compiler\DefaultCompiler.cs" />
+    <Compile Include="src\compiler\proto-scheme\Proto2Compiler.cs" />
     <Compile Include="src\compiler\proto-scheme\Proto3Compiler.cs" />
     <Compile Include="src\compiler\proto-scheme\ProtoHelper.cs" />
     <Compile Include="src\decompiler\c-sharp\ILDecompiler.cs" />
-    <Compile Include="src\decompiler\c-sharp\ILTools.cs" />
+    <Compile Include="src\decompiler\c-sharp\InspectorTools.cs" />
     <Compile Include="src\decompiler\c-sharp\MethodWalker.cs" />
     <Compile Include="src\decompiler\c-sharp\SilentOrbitInspector.cs" />
     <Compile Include="src\decompiler\DefaultDecompiler.cs" />
     <Compile Include="src\IRTypes.cs" />
     <Compile Include="src\processing\DependancyAnalyzer.cs" />
     <Compile Include="src\processing\DependancyUtil.cs" />
-    <Compile Include="src\processing\ShortNameAnalyzer.cs" />
+    <Compile Include="src\processing\NameCollisionAnalyzer.cs" />
+    <Compile Include="src\processing\NamespacePackager.cs" />
     <Compile Include="src\Program.cs" />
   </ItemGroup>
   <ItemGroup />

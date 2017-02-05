@@ -19,50 +19,16 @@ namespace protoextractor.compiler.proto_scheme
             if (structured == true)
             {
                 // Do something fancy to figure out folder names.
-                foreach (var mNS in nsList)
+                foreach (var ns in nsList)
                 {
-                    var highestMatchCount = 0;
-                    foreach (var cmpNS in nsList)
-                    {
-                        if (mNS == cmpNS) continue;
-
-                        // Compare all namespaces against each other and look for the
-                        // substring of mNS that resembles the most to ONE other namespace.
-                        // We prefer to not have half-words as subnamespace, so we cut to the last DOT char.
-                        var str = LongestmatchingSubstring(mNS.FullName, cmpNS.FullName);
-                        var matchLength = str.Count();
-                        // Cut till last dot, if there is one.
-                        var lastDotIdx = str.LastIndexOf('.');
-                        matchLength = (lastDotIdx != -1) ? lastDotIdx : matchLength;
-
-                        if (matchLength > highestMatchCount)
-                        {
-                            highestMatchCount = matchLength;
-                        }
-                    }
-
-                    string slice;
-                    if (highestMatchCount == 0)
-                    {
-                        // Take full name.
-                        slice = mNS.FullName;
-                    }
-                    else
-                    {
-                        // Take the matching substring. Also trim dots from the substring, to 
-                        // prevent path generation problems.
-                        slice = mNS.FullName.Substring(0, highestMatchCount).Trim('.');
-                    }
-                    // Construct path for namespace.
-                    var pathPieces = slice.Split('.').ToList();
-                    // Use the shortname as last foldername above the file.
-                    pathPieces.Add(mNS.ShortName);
+                    var nsName = ns.FullName;
+                    // Split namespace name to generate hierarchy.
+                    var pathPieces = nsName.Split('.').ToList();
                     // Use the shortname as filename.
-                    pathPieces.Add(mNS.ShortName + ".proto");
-                    // DO not repeat string values, while preserving the given order.
-                    var distinctPieces = pathPieces.Distinct().ToArray();
-                    var path = Path.Combine(distinctPieces);
-                    returnValue.Add(mNS, path);
+                    pathPieces.Add(ns.ShortName + ".proto");
+                    // Combine all pieces into a valid path structure.
+                    var path = Path.Combine(pathPieces.ToArray());
+                    returnValue.Add(ns, path);
                 }
             }
             else
@@ -76,27 +42,6 @@ namespace protoextractor.compiler.proto_scheme
             return returnValue;
         }
 
-        // Returns the longest substring that matches 2 or more types of the given list.
-        // The substrings are taken from the namespaces of each given type!
-        // The substring always starts from index 0 for each fullname.
-        // It's an heuristic for the 'longest matching substring problem'.
-        public static string LongestmatchingSubstring(string subject, string matcher)
-        {
-            // Loop all string characters..
-            int i;
-            var strOne = subject;
-            var strCmp = matcher;
-            for (i = 0; i < strOne.Count() && i < strCmp.Count(); i++)
-            {
-                var c1 = strOne[i];
-                var c2 = strCmp[i];
-                // If mismatch, return.
-                if (!c1.Equals(c2)) break;
-            }
-
-            return strOne.Substring(0, i);
-        }
-
         // This function converts string in PascalCase to snake_case
         // eg; BatlleNet => battle_net
         public static string PascalToSnake(this string s)
@@ -105,15 +50,12 @@ namespace protoextractor.compiler.proto_scheme
             return string.Concat(chars).Trim('_').ToLower();
         }
 
-        public static string ResolvePackageName(IRNamespace ns, Dictionary<IRNamespace, string> nsFileLocation)
+        public static string ResolvePackageName(IRNamespace ns)
         {
-            var nsFilePath = nsFileLocation[ns];
-            var nsPackageStructure = Path.GetDirectoryName(nsFilePath).Replace(Path.DirectorySeparatorChar, '.');
-            return nsPackageStructure;
+            return ns.FullName.ToLower();
         }
 
-        public static string ResolveTypeReferenceString(IRClass current, IRTypeNode reference,
-            Dictionary<IRNamespace, string> nsFileLocation)
+        public static string ResolveTypeReferenceString(IRClass current, IRTypeNode reference)
         {
             var returnValue = "";
             // If current and reference share the same namespace, no package name is added.
@@ -123,7 +65,7 @@ namespace protoextractor.compiler.proto_scheme
             // If the namespaces of both types don't match, the reference is made to another package.
             if (curNS != refNS)
             {
-                var pkgRefNS = ResolvePackageName(refNS, nsFileLocation);
+                var pkgRefNS = ResolvePackageName(refNS);
                 returnValue = returnValue + pkgRefNS + ".";
             }
 
@@ -190,8 +132,40 @@ namespace protoextractor.compiler.proto_scheme
             return null;
         }
 
-        public static string TypeTostring(PropertyTypeKind type, IRClass current, IRTypeNode reference,
-            Dictionary<IRNamespace, string> nsFileLocations)
+        // Returns a set of namespaces referenced by the given namespace.
+        // A namespace is referenced if any type in the given namespace has a property which 
+        // references a type in another namespace.
+        public static List<IRNamespace> ResolveNSReferences(IRNamespace ns)
+        {
+            HashSet<IRNamespace> references = new HashSet<IRNamespace>();
+
+            // Only classes make references.
+            foreach (var irClass in ns.Classes)
+            {
+                // Loop each property and record the referenced namespace.
+                foreach (var prop in irClass.Properties)
+                {
+                    if (prop.Type == PropertyTypeKind.TYPE_REF)
+                    {
+                        // Go up in the parent chain to find the containing namespace!
+                        var parent = prop.ReferencedType.Parent;
+                        // A non-set parent could wreak havoc here..
+                        while (!(parent is IRNamespace))
+                        {
+                            parent = parent.Parent;
+                        }
+                        // Parent should be a namespace instance by now
+                        references.Add((parent as IRNamespace));
+                    }
+                }
+            }
+
+            // Remove reference to our own file.
+            references.Remove(ns);
+            return references.ToList();
+        }
+
+        public static string TypeTostring(PropertyTypeKind type, IRClass current, IRTypeNode reference)
         {
             switch (type)
             {
@@ -218,26 +192,45 @@ namespace protoextractor.compiler.proto_scheme
                 case PropertyTypeKind.BYTES:
                     return "bytes";
                 case PropertyTypeKind.TYPE_REF:
-                    return ResolveTypeReferenceString(current, reference, nsFileLocations);
+                    return ResolveTypeReferenceString(current, reference);
                 default:
                     throw new Exception("Type not recognized!");
             }
         }
 
-        public static string FieldLabelToString(FieldLabel label)
+        public static string FieldLabelToString(FieldLabel label, bool proto3)
         {
             switch (label)
             {
                 case FieldLabel.OPTIONAL:
-                    // Proto3 syntax has an implicit OPTIONAL label.
-                    return "";
+                    // Proto3 syntax has an implicit OPTIONAL label!
+                    return (proto3 == true) ? "" : "optional";
                 case FieldLabel.REPEATED:
                     return "repeated";
                 case FieldLabel.REQUIRED:
-                    return "required";
+                    // Proto3 syntax does not allow REQUIRED label!
+                    return (proto3 == true) ? "" : "required";
                 default:
                     return "";
             }
+        }
+
+        public static string DefaultValueToString(string defaultValue, IRTypeNode reference)
+        {
+            // We return another value if there is a reference made.
+            if (reference != null && reference is IREnum)
+            {
+                // Look for the enum property with the same value.
+                IREnum irEnum = reference as IREnum;
+                // Care different representations!
+                var propertyMatch = irEnum.Properties.Where(prop => prop.Value.ToString().Equals(defaultValue));
+                if (propertyMatch.Any())
+                {
+                    return propertyMatch.First().Name;
+                }
+            }
+            // Default case; return the parameter back.
+            return defaultValue;
         }
     }
 }

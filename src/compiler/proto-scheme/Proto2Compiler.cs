@@ -1,10 +1,10 @@
-﻿using System;
+﻿using protoextractor.IR;
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using protoextractor.IR;
-using System.IO;
 
 namespace protoextractor.compiler.proto_scheme
 {
@@ -13,7 +13,7 @@ namespace protoextractor.compiler.proto_scheme
          *  Syntax MUST be first line of the file!
          *  We do declare package names.
          *  
-         *  syntax = "proto3";
+         *  syntax = "proto2";
          *  package ns.subns;
          *  
          *  import "myproject/other_protos.proto";
@@ -29,7 +29,7 @@ namespace protoextractor.compiler.proto_scheme
          *  message SearchRequest {
               required string query = 1;
               optional int32 page_number = 2;
-              optional int32 result_per_page = 3;
+              optional int32 result_per_page = 3 [default = 10];
               enum Corpus {
                 UNIVERSAL = 0;
                 WEB = 1;
@@ -45,21 +45,17 @@ namespace protoextractor.compiler.proto_scheme
           * Each namespace maps to ONE package!
           * 
         */
-
-    class Proto3Compiler : DefaultCompiler
+    class Proto2Compiler : DefaultCompiler
     {
         private static string _StartSpacer = "//----- Begin {0} -----";
         private static string _EndSpacer = "//----- End {0} -----";
         private static string _Spacer = "//------------------------------";
 
-        private int _incrementCounter;
-
         // Mapping of all namespace objects to their location on disk.
         private Dictionary<IRNamespace, string> _NSLocationCache;
 
-        public Proto3Compiler(IRProgram program) : base(program)
+        public Proto2Compiler(IRProgram program) : base(program)
         {
-            _incrementCounter = 0;
         }
 
         public override void Compile()
@@ -149,7 +145,7 @@ namespace protoextractor.compiler.proto_scheme
 
         private void WriteHeaderToFile(IRNamespace ns, TextWriter w)
         {
-            w.WriteLine("syntax = \"proto3\";");
+            w.WriteLine("syntax = \"proto2\";");
             if (ns != null)
             {
                 var nsPackage = ProtoHelper.ResolvePackageName(ns);
@@ -196,33 +192,8 @@ namespace protoextractor.compiler.proto_scheme
 
             // WE SUPPOSE there are NOT multiple properties with the same value.
 
-            // Make a copy of all properties.
-            var propList = e.Properties.ToList();
-            // Find or create the property with value 0, that one must come first!
-            IREnumProperty zeroProp;
-            var zeroPropEnumeration = propList.Where(prop => prop.Value == 0);
-            if (!zeroPropEnumeration.Any())
-            {
-                zeroProp = new IREnumProperty()
-                {
-                    // Enum values are all shared within the same namespace, so they must be
-                    // globally unique!
-                    Name = "AUTO_INVALID_" + _incrementCounter++,
-                    Value = 0,
-                };
-            }
-            else
-            {
-                zeroProp = zeroPropEnumeration.First();
-                // And remove the property from the collection.
-                propList.Remove(zeroProp);
-            }
-
-            // Write the zero property first - AS REQUIRED PER PROTO3!
-            w.WriteLine("{0}{1} = {2};", prefix + "\t", zeroProp.Name, zeroProp.Value);
-
-            // Write out the other properties of the enum next
-            foreach (var prop in propList)
+            // Write out all properties of the enum.
+            foreach (var prop in e.Properties)
             {
                 // Enum property names are NOT converted to snake case!
                 w.WriteLine("{0}{1} = {2};", prefix + "\t", prop.Name, prop.Value);
@@ -254,22 +225,29 @@ namespace protoextractor.compiler.proto_scheme
             foreach (var prop in c.Properties)
             {
                 var opts = prop.Options;
-                // Proto3 syntax has implicit default values!
-
-                var label = ProtoHelper.FieldLabelToString(opts.Label, true);
+                var label = ProtoHelper.FieldLabelToString(opts.Label, false);
                 var type = ProtoHelper.TypeTostring(prop.Type, c, prop.ReferencedType);
                 var tag = opts.PropertyOrder.ToString();
 
-                // In proto3, the default for a repeated field is PACKED=TRUE.
-                // Only if it's not packed.. we set it to false.
-                var packed = "";
-                if (opts.IsPacked == false && opts.Label == FieldLabel.REPEATED)
+                // TODO
+                var defaultValue = "";
+                if (prop.Options.DefaultValue != null)
                 {
-                    // Incorporate SPACE at the beginning of the string!
-                    packed = string.Format(" [packed=false]");
+                    var formattedValue = ProtoHelper.DefaultValueToString(prop.Options.DefaultValue, prop.ReferencedType);
+                    defaultValue = string.Format(" [default = {0}]", formattedValue);
                 }
 
-                w.WriteLine("{0}{1} {2} {3} = {4}{5};", prefix + "\t", label, type, prop.Name.PascalToSnake(), tag, packed);
+                // Proto2 has repeated fields NOT PACKED by default, if they are
+                // we mark that explicitly.
+                var packed = "";
+                if (opts.IsPacked == true && opts.Label == FieldLabel.REPEATED)
+                {
+                    // Incorporate SPACE at the beginning of the string!
+                    packed = string.Format(" [packed=true]");
+                }
+
+                w.WriteLine("{0}{1} {2} {3} = {4}{5}{6};", prefix + "\t", label, type, prop.Name.PascalToSnake(), tag,
+                    defaultValue, packed);
             }
 
             // End message.

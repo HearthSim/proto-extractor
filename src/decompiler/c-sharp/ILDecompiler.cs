@@ -39,12 +39,12 @@ namespace protoextractor.decompiler.c_sharp
 
         public override IRClass ConstructIRClass()
         {
-            return (IR.IRClass)_constructedSubject;
+            return (IRClass)_constructedSubject;
         }
 
-        public override IR.IREnum ConstructIREnum()
+        public override IREnum ConstructIREnum()
         {
-            return (IR.IREnum)_constructedSubject;
+            return (IREnum)_constructedSubject;
         }
 
         public override void Decompile(out List<TypeDefinition> references)
@@ -87,17 +87,25 @@ namespace protoextractor.decompiler.c_sharp
                 MethodDefinition serialize = serializeEnum.First();
                 MethodDefinition deserialize = deserializeEnum.First();
 
-                // Create a handler for the OnCall action.
+                // Create a handler for the serialize OnCall action.
                 Action<CallInfo, List<byte>> silentOrbitSerializeCallHandler = (CallInfo info, List<byte> w) =>
                 {
                     // Just chain the call.
                     // Property information is updated in place!
                     SilentOrbitInspector.SerializeOnCall(info, w, props);
                 };
-
                 // Walk the serialize method for additional information.
                 MethodWalker.WalkMethod(serialize, silentOrbitSerializeCallHandler, null);
+
+                // Create handler for deserialize oncall action.
+                Action<CallInfo, List<byte>> silentOrbitDeserializeCallHandler = (CallInfo info, List<byte> w) =>
+                {
+                    // Just chain the call.
+                    // Property information is updated in place!
+                    SilentOrbitInspector.DeserializeOnCall(info, w, props);
+                };
                 // Walk the deserialize method for additional information.
+                MethodWalker.WalkMethod(deserialize, silentOrbitDeserializeCallHandler, null);
             }
         }
 

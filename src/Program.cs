@@ -1,5 +1,7 @@
 ﻿using protoextractor.analyzer.c_sharp;
+using protoextractor.compiler;
 using protoextractor.compiler.proto_scheme;
+using protoextractor.processing;
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -41,11 +43,24 @@ namespace protoextractor
             var program = analyzer.GetRoot();
 
             // Analyze and solve circular dependancies.
-            processing.DependancyAnalyzer depAnalyzer = new processing.DependancyAnalyzer(program);
+            DependancyAnalyzer depAnalyzer = new DependancyAnalyzer(program);
             program = depAnalyzer.Process();
 
+            // Group matching namespaces under a common package.
+            NamespacePackager nsPackager = new NamespacePackager(program);
+            program = nsPackager.Process();
+
+            // Analyze and fix name collisions.
+            NameCollisionAnalyzer nameAnalyzer = new NameCollisionAnalyzer(program);
+            program = nameAnalyzer.Process();
+
             // Construct protobuffer files from the parsed data.
-            var compiler = new ProtoSchemeCompiler(program);
+            DefaultCompiler compiler;
+            // Use proto3 syntax.
+            compiler = new Proto3Compiler(program);
+            // Use proto2 syntax.
+            //compiler = new Proto2Compiler(program);
+
             // Dumps everything to one file..
             // compiler.DumpMode = true;
 
@@ -57,9 +72,9 @@ namespace protoextractor
 
             CSharp_TestDecompiledProtoFiles();
 
-            //Python_TestDecompiledProtoFiles();
+            Python_TestDecompiledProtoFiles();
 
-            //Go_TestDecompiledProtoFiles();
+            Go_TestDecompiledProtoFiles();
 
             return;
         }
@@ -172,7 +187,7 @@ namespace protoextractor
             string[] files = Directory.GetFiles(directory, protoFileNameGlob, SearchOption.TopDirectoryOnly);
 
             // Don't run if there are no proto files found!.
-            if(!files.Any())
+            if (!files.Any())
             {
                 return;
             }

@@ -3,7 +3,9 @@ using Mono.Cecil.Cil;
 using protoextractor.IR;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
+using System.Threading;
 
 namespace protoextractor.decompiler.c_sharp
 {
@@ -19,6 +21,43 @@ namespace protoextractor.decompiler.c_sharp
         public static bool MatchSerializeMethod(MethodDefinition method)
         {
             return method.Name.Equals("Serialize") && method.Parameters.Count == 2;
+        }
+
+        public static void DeserializeOnCall(CallInfo info, List<byte> writtenBytes, List<IRClassProperty> properties)
+        {
+            // Check if we matched a function call that sets properties, without reading from the wire.
+            if (info.Conditions.Count == 0 && info.Method.Name.StartsWith("set_"))
+            {
+                // Extract property name.
+                var propName = info.Method.Name.Substring(4);
+                // Find property.
+                var property = properties.First(x => x.Name.Equals(propName));
+
+                // Hardcode internationalization values for converting values to strings.
+                var prevInternationalization = Thread.CurrentThread.CurrentCulture;               
+                Thread.CurrentThread.CurrentCulture = CultureInfo.CreateSpecificCulture("en-GB");
+                // Get the value that's gonna be set to the property.
+                var val = info.Arguments[1].ToString();
+                // Restore.
+                Thread.CurrentThread.CurrentCulture = prevInternationalization;
+
+                // Generate correct string representation for each type of object
+                // that could be set.
+                if (val.EndsWith("String::Empty"))
+                {
+                    val = "\"\"";
+                }
+                else if (info.Arguments[1].GetType() == typeof(string))
+                {
+                    val = "\"" + val.Replace("\"", "\\\"") + "\"";
+                }
+                if (info.Method.Parameters.First().ParameterType.Name == "Boolean")
+                {
+                    val = (val == "0") ? "false" : "true";
+                }
+                // Set the default value.
+                property.Options.DefaultValue = val;
+            }
         }
 
         // A method was called by our inspected method. We use the collected information (our environment)
@@ -63,43 +102,34 @@ namespace protoextractor.decompiler.c_sharp
                 return;
             }
 
-            // Get the name for the current tag.
-            var name = "";
-            if (iterConds.Any())
-            {
-                // Iteration methods are found, so this field is repeated.
-                name = info.Conditions.First(x => x.Lhs.Contains("get_Count()")).Lhs;
-                name = name.Substring(name.IndexOf(".get_") + 5);
-                name = name.Substring(0, name.Length - 14);
-            }
-            else
-            {
-                // NON-REPEATED field
-                name = info.Arguments[1].ToString();
-                if (name.StartsWith("Encoding.get_UTF8()"))
-                {
-                    name = name.Substring(31, name.Length - 32);
-                }
-                name = name.Substring(name.IndexOf(".get_") + 5);
-                name = name.Substring(0, name.Length - 2);
-            }
-            // Fetch the property object by it's name
-            var prop = properties.First(x => x.Name == name);
-
             // Get the packed flag.
-            var packed = InspectorTools.IsFieldPacked(iterConds);
+            var packed = IsFieldPacked(iterConds);
 
             // Get the tag from the info.
             var tag = InspectorTools.GetFieldTag(writtenBytes);
             // Reset written bytes in order to process the next tag.
             writtenBytes.Clear();
 
+            // Get the field label.
+            var label = GetFieldLabel(info, iterConds);
+
+            // Get the name for the current tag.
+            var name = GetFieldName(info, label);
+
+            // Fetch the property object by it's name
+            var prop = properties.First(x => x.Name == name);
+
+            // In case the writing class is called BinaryWriter, the mapping is different.
+            if(info.Method.DeclaringType.Name.Equals("BinaryWriter"))
+            {
+                prop.Type = InspectorTools.FixedTypeMapper(prop);
+            }
+
             // Set property options
+            prop.Options.Label = label;
             prop.Options.PropertyOrder = tag;
             prop.Options.IsPacked = packed;
-            // Label and value should have been set!
             // Default value is extracted from the deserialize method..
-            // TODO ^^^
         }
 
         // Get all properties from the type we are analyzing.
@@ -123,8 +153,10 @@ namespace protoextractor.decompiler.c_sharp
                 TypeDefinition refDefinition;
                 // Set of field (proto) options.
                 IRClassProperty.ILPropertyOptions options = new IRClassProperty.ILPropertyOptions();
+                // Default to required field.
+                options.Label = FieldLabel.REQUIRED;
                 // IR type of the property.
-                PropertyTypeKind propType = InspectorTools.TypeMapper(property, options, out refDefinition);
+                PropertyTypeKind propType = InspectorTools.DefaultTypeMapper(property, out refDefinition);
 
                 // IR object - reference placeholder for the IR Class.
                 IRTypeNode irReference = null;
@@ -133,7 +165,7 @@ namespace protoextractor.decompiler.c_sharp
                     irReference = ConstructIRType(refDefinition);
                     // Also save the reference typedefinition for the caller to process.
                     references.Add(refDefinition);
-                }                
+                }
 
                 // Construct IR property and store.
                 var prop = new IRClassProperty
@@ -165,6 +197,58 @@ namespace protoextractor.decompiler.c_sharp
             {
                 throw new Exception("The given type can not be represented by IR");
             }
+        }
+
+        public static bool IsFieldPacked(IEnumerable<Condition> iterConds)
+        {
+            var packed = iterConds.Any(x => x.Cmp == Comparison.IsFalse);
+
+            return packed;
+        }
+
+        public static FieldLabel GetFieldLabel(CallInfo info, IEnumerable<Condition> iterConds)
+        {
+            // Discover the field expectancy.
+            // INVALID is default, but actually optional should be default anyway!
+            var label = FieldLabel.INVALID;
+            if (iterConds.Any())
+            {
+                label = FieldLabel.REPEATED;
+            }
+            // There is a test for the specific field, so it's optional.
+            else if (info.Conditions.Any(x => x.Lhs.Contains(".Has")))
+            {
+                label = FieldLabel.OPTIONAL;
+            }
+            else
+            {
+                label = FieldLabel.REQUIRED;
+            }
+            return label;
+        }
+
+        public static string GetFieldName(CallInfo info, FieldLabel label)
+        {
+            // Extract the name of the field.
+            var name = "";
+            if (label == FieldLabel.REPEATED)
+            {
+                name = info.Conditions.First(x => x.Lhs.Contains("get_Count()")).Lhs;
+                name = name.Substring(name.IndexOf(".get_") + 5);
+                name = name.Substring(0, name.Length - 14);
+            }
+            else
+            {
+                name = info.Arguments[1].ToString();
+                if (name.StartsWith("Encoding.get_UTF8()"))
+                {
+                    name = name.Substring(31, name.Length - 32);
+                }
+                name = name.Substring(name.IndexOf(".get_") + 5);
+                name = name.Substring(0, name.Length - 2);
+            }
+
+            return name;
         }
     }
 }

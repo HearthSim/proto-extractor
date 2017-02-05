@@ -129,10 +129,15 @@ namespace protoextractor.decompiler.c_sharp
                     int value = (int)(ins.OpCode.Op2 - 0x16);
                     stack.Add(value);
                     break;
+                case Code.Ldc_I4_M1:
+                    // Pushes integer value -1 onto the stack.
+                    stack.Add(-1);
+                    break;
                 case Code.Ldloca:
                     stack.Add("&" + (ins.Operand as VariableReference).ToString());
                     break;
                 case Code.Ldloc:
+                case Code.Ldloc_S:
                 case Code.Ldloca_S:
                     stack.Add((ins.Operand as VariableReference).ToString());
                     break;
@@ -281,7 +286,7 @@ namespace protoextractor.decompiler.c_sharp
                     }
                     break;
                 case Code.Br:
-                    // Update offset on current operation.
+                    // Jump to other location (unconditionally).
                     operation.Offset = (ins.Operand as Instruction).Offset;
                     Explore(methodDef, processingQueue, processedOps, operation);
                     return;

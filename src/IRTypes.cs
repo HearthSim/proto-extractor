@@ -17,6 +17,8 @@ namespace protoextractor.IR
      * The backend takes this intermediate representation and produces the desired 
      * output.
      */
+
+
     [DebuggerDisplay("IRProgram")]
     public class IRProgram
     {
@@ -56,6 +58,29 @@ namespace protoextractor.IR
     [DebuggerDisplay("IRNamespace {FullName}")]
     public class IRNamespace : IRProgramNode
     {
+        /*
+         * A namespace is a container for multiple Classes and Enums. The namespace
+         * acts as a parent to these other objects.
+         * A namespace represents one package in protobuffer terms.
+         * Namespaces starting with the same sequence of characters have a parent-child
+         * relation in a sense that one namespace can act as a parent of another.
+         * It's important to have no nameclashes within one namespace, but also 
+         * between types and possible nested namespaces!
+         * 
+         * Namespaces map directly onto proto packages!
+         * 
+         * The fullname of a namespace consists of one or multiple character sequences
+         * joined by a DOT character.
+         * The DOT character indicates a subnamespace.
+         * 
+         * eg; toplevel_namespace.sub_namespace.subsubnamespace
+         * 
+         * The shortname is the last character sequence part of the fullname.
+         * In case of the previous example, it's subsubnamespace.
+         * 
+         * Namespace names are ALWAYS lowercased!
+         */
+
         // All classes found directly under this namespace.
         public List<IRClass> Classes;
         // All enums found directly inder this namespace.
@@ -66,12 +91,33 @@ namespace protoextractor.IR
 
     public class IRTypeNode : IRProgramNode
     {
+        /*
+         * A space which contains all types a namespace can hold, currently class and enum.
+         * By inheriting this class, types are forced to have a fullname and shortname!
+         * 
+         * The shortname is the actual name of the type object.
+         * eg: PROPERTY_KIND
+         * 
+         * The fullname is a concatenation of the parent namespace's fullname and the
+         * shortname of this type. The joining element is the DOT character.
+         * eg: parent_namespace.PROPERTY_KIND
+         */
+
         public IRTypeNode(string _fullName, string _shortName) : base(_fullName, _shortName) { }
     }
 
     [DebuggerDisplay("IRClass {FullName}")]
     public class IRClass : IRTypeNode
     {
+        /*
+         * Container of a set of properties.
+         * 
+         * Classes map directly to proto messages!
+         * 
+         * Class names are always in PscalCase!
+         * Class property names are always in snake_case!
+         */
+
         // All properties of this class.
         public List<IRClassProperty> Properties;
         // All types that are only referenceble by properties of this
@@ -84,6 +130,15 @@ namespace protoextractor.IR
     [DebuggerDisplay("IREnum {FullName}")]
     public class IREnum : IRTypeNode
     {
+        /*
+         * Enums give semantic value to integers.
+         * 
+         * Enums map directly to proto enums!
+         * 
+         * Eums names are always in PascalCase!
+         * Enum property names are always in UPPERCASE!
+         */
+
         // All properties of this enum.
         public List<IREnumProperty> Properties;
 
@@ -106,7 +161,7 @@ namespace protoextractor.IR
             public FieldLabel Label;
             public int PropertyOrder;
             public bool IsPacked;
-            public object DefaultValue;
+            public string DefaultValue;
         }
 
         public string Name;
