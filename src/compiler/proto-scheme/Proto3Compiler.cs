@@ -181,7 +181,7 @@ namespace protoextractor.compiler.proto_scheme
 
         private void WriteEnumsToFile(IRNamespace ns, TextWriter w, string prefix = "")
         {
-            foreach (var irEnum in ns.Enums)
+            foreach (var irEnum in ns.Enums.OrderBy(e => e.ShortName))
             {
                 // Don't write private types.
                 if (irEnum.IsPrivate) continue;
@@ -222,7 +222,7 @@ namespace protoextractor.compiler.proto_scheme
             w.WriteLine("{0}{1} = {2};", prefix + "\t", zeroProp.Name, zeroProp.Value);
 
             // Write out the other properties of the enum next
-            foreach (var prop in propList)
+            foreach (var prop in propList.OrderBy(prop => prop.Value))
             {
                 // Enum property names are NOT converted to snake case!
                 w.WriteLine("{0}{1} = {2};", prefix + "\t", prop.Name, prop.Value);
@@ -235,7 +235,7 @@ namespace protoextractor.compiler.proto_scheme
 
         private void WriteClassesToFile(IRNamespace ns, TextWriter w, string prefix = "")
         {
-            foreach (var irClass in ns.Classes)
+            foreach (var irClass in ns.Classes.OrderBy(c => c.ShortName))
             {
                 // Don't write private types.
                 if (irClass.IsPrivate) continue;
@@ -251,7 +251,7 @@ namespace protoextractor.compiler.proto_scheme
             WritePrivateTypesToFile(c, w, prefix + "\t");
 
             // Write all fields last!
-            foreach (var prop in c.Properties)
+            foreach (var prop in c.Properties.OrderBy(prop => prop.Options.PropertyOrder))
             {
                 var opts = prop.Options;
                 // Proto3 syntax has implicit default values!
@@ -284,13 +284,13 @@ namespace protoextractor.compiler.proto_scheme
             var classEnumeration = cl.PrivateTypes.Where(x => x is IRClass).Cast<IRClass>();
 
             // Write out each private enum first..
-            foreach (var privEnum in enumEnumeration)
+            foreach (var privEnum in enumEnumeration.OrderBy(e => e.ShortName))
             {
                 WriteEnum(privEnum, w, prefix);
             }
 
             // Then all private classes.
-            foreach (var privClass in classEnumeration)
+            foreach (var privClass in classEnumeration.OrderBy(c => c.ShortName))
             {
                 // This recursively writes the private types of this class (if any).
                 WriteMessage(privClass, w, prefix);
