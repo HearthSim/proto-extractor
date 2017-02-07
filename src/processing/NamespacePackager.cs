@@ -77,10 +77,10 @@ namespace protoextractor.processing
 
                 // Build package name for the current namespace.
                 var packageSuffix = (highestMatchCount == 0) ? nsName : nsName.Substring(0, highestMatchCount).Trim('.');
-                // Remove repeating sequences of characters.
-                packageSuffix = RemoveRepeatingSequences(packageSuffix);
                 // Append the shortname of the namespace, resulting in the full name.
                 var fullName = packageSuffix + "." + ns.ShortName;
+                // Remove repeating sequences of characters.
+                fullName = RemoveRepeatingSequences(fullName);
 
                 // Save the full name
                 _packagedNSNames[ns] = fullName;
