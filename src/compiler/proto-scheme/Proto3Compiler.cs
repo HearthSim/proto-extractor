@@ -219,13 +219,13 @@ namespace protoextractor.compiler.proto_scheme
             }
 
             // Write the zero property first - AS REQUIRED PER PROTO3!
-            w.WriteLine("{0}{1} = {2};", prefix + "\t", zeroProp.Name.ToUpper(), zeroProp.Value);
+            w.WriteLine("{0}{1} = {2};", prefix + "\t", zeroProp.Name, zeroProp.Value);
 
             // Write out the other properties of the enum next
             foreach (var prop in propList.OrderBy(prop => prop.Value))
             {
                 // Enum property names are NOT converted to snake case!
-                w.WriteLine("{0}{1} = {2};", prefix + "\t", prop.Name.ToUpper(), prop.Value);
+                w.WriteLine("{0}{1} = {2};", prefix + "\t", prop.Name, prop.Value);
             }
 
             // End enum.
