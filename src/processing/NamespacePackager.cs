@@ -59,9 +59,15 @@ namespace protoextractor.processing
                     // starting from index 0.
                     var str = NamespacePackagerHelper.LongestmatchingSubstring(nsName, cmpNSName);
                     var matchLength = str.Count();
+
+                    // We don't want occurrences by chance, so any matching string with a count
+                    // below 3 characters is not recorded!
+                    if (matchLength < 3) continue;
+
                     // We don't want half words, so we cut after the last DOT character (if found).
                     var lastDotIDx = str.LastIndexOf('.');
                     matchLength = (lastDotIDx != -1) ? lastDotIDx : matchLength;
+
                     // Store the amount of characters matched between both names.
                     if (matchLength > highestMatchCount)
                     {
@@ -71,12 +77,44 @@ namespace protoextractor.processing
 
                 // Build package name for the current namespace.
                 var packageSuffix = (highestMatchCount == 0) ? nsName : nsName.Substring(0, highestMatchCount).Trim('.');
+                // Remove repeating sequences of characters.
+                packageSuffix = RemoveRepeatingSequences(packageSuffix);
                 // Append the shortname of the namespace, resulting in the full name.
                 var fullName = packageSuffix + "." + ns.ShortName;
 
                 // Save the full name
                 _packagedNSNames[ns] = fullName;
             }
+        }
+
+        private string RemoveRepeatingSequences(string input)
+        {
+            List<int> removePieceIdx = new List<int>();
+            // Cut namespace into parts.
+            var pieces = new List<string>(input.Split('.'));
+            // Check each part if it's repeated.. (if the previous part is the same as the last)
+            for (int i = 1; i < pieces.Count; i++)
+            {
+                if (pieces[i - 1].Equals(pieces[i]))
+                {
+                    // Store the index for later removal.
+                    removePieceIdx.Add(i);
+                }
+            }
+
+            // Remove repeating pieces.
+            int removeCounter = 0;
+            foreach (var idx in removePieceIdx)
+            {
+                // Remove piece at the given index.
+                // RemoveCounter is subtracted because the list shrinks per removed item!
+                pieces.RemoveAt(idx - removeCounter);
+                // Increase removecounter to not remove pieces out of bounds.
+                removeCounter++;
+            }
+
+            // Implode pieces again and return.
+            return string.Join(".", pieces);
         }
 
         private void UpdateNamespaces()
