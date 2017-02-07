@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using protoextractor.IR;
+using System.Security.Cryptography;
 
 namespace protoextractor.processing
 {
@@ -17,18 +18,22 @@ namespace protoextractor.processing
     {
         IRProgram _program;
 
-        // Counter keeping track of all collisions.
-        private int _collisions;
+        MD5 _md5Hash;
 
         public NameCollisionAnalyzer(IRProgram program)
         {
             _program = program;
-
-            _collisions = 0;
+            _md5Hash = MD5.Create();
         }
 
         public IRProgram Process()
         {
+            // Check if there are duplicate private types within the same class.
+            TestPrivateTypeCollision();
+
+            // Test public enums properties.
+            TestCollisionEnumProperties();
+
             // Check if there are not multiple types with the same shortname
             // inside each namespace.
             foreach (var ns in _program.Namespaces)
@@ -41,6 +46,58 @@ namespace protoextractor.processing
             TestInterNSCollisions();
 
             return _program;
+        }
+
+        private void TestPrivateTypeCollision()
+        {
+            // Loop all classes with private types.
+            foreach (var ns in _program.Namespaces)
+            {
+                var targetClasses = ns.Classes.Where(c => c.PrivateTypes.Count > 0);
+                foreach (var irClass in targetClasses)
+                {
+                    // Find all private types which collide.
+                    var collisions = irClass.PrivateTypes.GroupBy(x => x.ShortName)
+                                                            .Where(group => group.Count() > 1)
+                                                            .Select(group => group.Key);
+                    foreach (var collision in collisions)
+                    {
+                        // Collect all types that collide.
+                        var typeList = irClass.PrivateTypes.Where(t => t.ShortName.Equals(collision)).ToList();
+                        // Remove the first occurrence, because only secondary occurrences must be renamed.
+                        typeList.RemoveAt(0);
+                        // Rename secondary occurrences.
+                        RenameTypes(typeList);
+                    }
+                }
+            }
+        }
+
+        private void TestCollisionEnumProperties()
+        {
+            // Public enums have there properties scoped by the parent namespace.
+            // To avoid enum property collisions, we must check collisions accross all
+            // property names per namespace.
+            foreach (var ns in _program.Namespaces)
+            {
+                // Fetch all properties of ALL (public + private) enums.
+                var props = ns.Enums.SelectMany(e => e.Properties);
+                // Get list of collided property names.
+                var collisions = props.GroupBy(e => e.Name)
+                                        .Where(group => group.Count() > 1)
+                                        .Select(group => group.Key);
+
+                foreach (var collision in collisions)
+                {
+                    // Get all properties of enums for the current namespace matching 
+                    // the collision as name.
+                    var renameProperties = props.Where(p => p.Name.Equals(collision)).ToList();
+                    // Don't rename the first property.
+                    renameProperties.RemoveAt(0);
+                    // Rename secondary occurrences of properties.
+                    RenameProperties(renameProperties);
+                }
+            }
         }
 
         // Test for shortname collisions within one namespace.
@@ -109,7 +166,7 @@ namespace protoextractor.processing
                     // Calculate the differrence in namespace names.
                     var parentNSNameCount = parentNS.FullName.Count();
                     var childName = ns.FullName.Substring(parentNSNameCount).Trim('.');
-                    
+
                     // If the parent namespace has a type, with a shortname, that matches
                     // the calculated childName. That child has to be renamed!
                     // Case mismatch! PascalCase <-> lowercase
@@ -130,12 +187,51 @@ namespace protoextractor.processing
         {
             foreach (var type in types)
             {
-                // Prepare affix.
-                var affix = string.Format("_a{0}", _collisions++);
+                // Prepare affix, this has to be somewhat deterministic so we use the hash
+                // of the fullName.
+                var typeHash = GetMD5Hash(type.FullName);
+                // Take first 3 characters from the hash.
+                typeHash = typeHash.Substring(0, 3);
+
+                var affix = string.Format("_a{0}", typeHash);
                 // Append affix to full and shortname.
                 type.FullName = type.FullName + affix;
                 type.ShortName = type.ShortName + affix;
             }
+        }
+
+        private void RenameProperties(IEnumerable<IREnumProperty> properties)
+        {
+            foreach (var prop in properties)
+            {
+                // Prepare affix, this has to be somewhat deterministic, so resolve fullName of the
+                // parent enum (which we have to find :/)
+                var parentEnum = _program.Namespaces.SelectMany(ns => ns.Enums)
+                                                        .First(e => e.Properties.Contains(prop));
+                // Use the parent enum fullname to construct our hash.
+                var typeHash = GetMD5Hash(parentEnum.FullName);
+                // Take first 3 characters from the hash.
+                typeHash = typeHash.Substring(0, 3);
+
+                var affix = string.Format("_a{0}", typeHash);
+                // Append affix to full and shortname.
+                prop.Name = prop.Name + affix;
+            }
+        }
+
+        private string GetMD5Hash(string input)
+        {
+            // Example taken from: https://msdn.microsoft.com/en-us/library/s02tk69a(v=vs.110).aspx
+            // Construct hash.
+            byte[] data = _md5Hash.ComputeHash(Encoding.UTF8.GetBytes(input));
+            // Generate hexadecimal representation of hash.
+            StringBuilder builder = new StringBuilder();
+            foreach (var b in data)
+            {
+                builder.Append(b.ToString("x2"));
+            }
+            // Return hex string.
+            return builder.ToString();
         }
     }
 
