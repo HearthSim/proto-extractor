@@ -7,10 +7,15 @@ using System.Globalization;
 using System.Linq;
 using System.Threading;
 
-namespace protoextractor.decompiler.c_sharp
+namespace protoextractor.decompiler.c_sharp.inspectors
 {
     class SilentOrbitInspector
     {
+
+        public static bool MatchAnalyzableClasses(TypeDefinition t)
+        {
+            return (t.IsClass && t.Interfaces.Any(i => i.Name.Equals("IProtoBuf")));
+        }
 
         // Math the SilentOrbit generated Deserialize method.
         public static bool MatchDeserializeMethod(MethodDefinition method)
@@ -122,7 +127,7 @@ namespace protoextractor.decompiler.c_sharp
             // In case the writing class is called BinaryWriter, the mapping is different.
             if(info.Method.DeclaringType.Name.Equals("BinaryWriter"))
             {
-                prop.Type = InspectorTools.FixedTypeMapper(prop);
+                prop.Type = FixedTypeMapper(prop);
             }
 
             // Set property options
@@ -146,15 +151,15 @@ namespace protoextractor.decompiler.c_sharp
             // to protobuffer files.
             foreach (var property in _subjectClass.Properties)
             {
-                // Property must have a setter method, otherwise it wouldn't be related to ProtoBuffers
+                // Property must have a setter method, otherwise it wouldn't be related to ProtoBuffers schema.
                 if (property.SetMethod == null) continue;
 
                 // Object which the current property references.
                 TypeDefinition refDefinition;
                 // Set of field (proto) options.
                 IRClassProperty.ILPropertyOptions options = new IRClassProperty.ILPropertyOptions();
-                // Default to required field.
-                options.Label = FieldLabel.REQUIRED;
+                // Default to invalid field.
+                options.Label = FieldLabel.INVALID;
                 // IR type of the property.
                 PropertyTypeKind propType = InspectorTools.DefaultTypeMapper(property, out refDefinition);
 
@@ -162,7 +167,7 @@ namespace protoextractor.decompiler.c_sharp
                 IRTypeNode irReference = null;
                 if (propType == PropertyTypeKind.TYPE_REF)
                 {
-                    irReference = ConstructIRType(refDefinition);
+                    irReference = InspectorTools.ConstructIRType(refDefinition);
                     // Also save the reference typedefinition for the caller to process.
                     references.Add(refDefinition);
                 }
@@ -181,23 +186,7 @@ namespace protoextractor.decompiler.c_sharp
             return properties;
         }
 
-        // Converts a given typedefinition to an empty IR type.
-        // This method can be used to generate reference placeholders for properties.
-        public static IRTypeNode ConstructIRType(TypeDefinition type)
-        {
-            if (type.IsEnum)
-            {
-                return new IREnum(type.FullName, type.Name);
-            }
-            else if (type.IsClass)
-            {
-                return new IRClass(type.FullName, type.Name);
-            }
-            else
-            {
-                throw new Exception("The given type can not be represented by IR");
-            }
-        }
+        
 
         public static bool IsFieldPacked(IEnumerable<Condition> iterConds)
         {
@@ -209,8 +198,8 @@ namespace protoextractor.decompiler.c_sharp
         public static FieldLabel GetFieldLabel(CallInfo info, IEnumerable<Condition> iterConds)
         {
             // Discover the field expectancy.
-            // INVALID is default, but actually optional should be default anyway!
-            var label = FieldLabel.INVALID;
+            // Fallback to REQUIRED AS DEFAULT.
+            var label = FieldLabel.REQUIRED;
             if (iterConds.Any())
             {
                 label = FieldLabel.REPEATED;
@@ -220,10 +209,7 @@ namespace protoextractor.decompiler.c_sharp
             {
                 label = FieldLabel.OPTIONAL;
             }
-            else
-            {
-                label = FieldLabel.REQUIRED;
-            }
+            
             return label;
         }
 
@@ -249,6 +235,25 @@ namespace protoextractor.decompiler.c_sharp
             }
 
             return name;
+        }
+
+        public static PropertyTypeKind FixedTypeMapper(IRClassProperty property)
+        {
+            PropertyTypeKind fieldType;
+            switch (property.Type)
+            {
+                case PropertyTypeKind.UINT32:
+                    fieldType = PropertyTypeKind.FIXED32;
+                    break;
+                case PropertyTypeKind.UINT64:
+                    fieldType = PropertyTypeKind.FIXED64;
+                    break;
+                default:
+                    fieldType = property.Type;
+                    break;
+            }
+
+            return fieldType;
         }
     }
 }

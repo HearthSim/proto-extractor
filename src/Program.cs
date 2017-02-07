@@ -10,12 +10,21 @@ using System.Threading;
 
 namespace protoextractor
 {
+    /*
+     * Launch parameters for HearthStone decompilation:
+     *      absLibPath = @"D:\Program Files (x86)\Hearthstone-Stove\Hearthstone_Data\Managed"
+     *      dllFileNameGlob = "Assembly-CSharp*.dll"
+     *      
+     * Launch parameters for other decompilation:
+     *      absLibPath = @"E:\User Data\Documenten\Visual Studio 2015\Projects\CSProtoBuffCompilation\bin\Debug"
+     *      dllFileNameGlob = "CSProtoBuffCompilation.exe"
+     */
     class Program
     {
         // Location of Game library files.
-        private static string absLibPath = @"D:\Program Files (x86)\Hearthstone-Stove\Hearthstone_Data\Managed";
+        private static string absLibPath = @"E:\User Data\Documenten\Visual Studio 2015\Projects\CSProtoBuffCompilation\bin\Debug";
         // Match function for files to analyze.
-        private static string dllFileNameGlob = "Assembly-CSharp*.dll";
+        private static string dllFileNameGlob = "CSProtoBuffCompilation.exe";
         // Output folder for proto files.
         private static string absProtoOutput = Path.GetFullPath(@".\proto-out");
         // Match function for proto files to compile.
@@ -57,9 +66,9 @@ namespace protoextractor
             // Construct protobuffer files from the parsed data.
             DefaultCompiler compiler;
             // Use proto3 syntax.
-            compiler = new Proto3Compiler(program);
+            // compiler = new Proto3Compiler(program);
             // Use proto2 syntax.
-            //compiler = new Proto2Compiler(program);
+            compiler = new Proto2Compiler(program);
 
             // Dumps everything to one file..
             // compiler.DumpMode = true;
@@ -70,11 +79,11 @@ namespace protoextractor
                 // Write output.
                 .Compile();
 
-            CSharp_TestDecompiledProtoFiles();
+            //CSharp_TestDecompiledProtoFiles();
 
             Python_TestDecompiledProtoFiles();
 
-            Go_TestDecompiledProtoFiles();
+            //Go_TestDecompiledProtoFiles();
 
             return;
         }

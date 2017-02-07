@@ -10,6 +10,24 @@ namespace protoextractor.decompiler.c_sharp
 {
     public class InspectorTools
     {
+        // Converts a given typedefinition to an empty IR type.
+        // This method can be used to generate reference placeholders for properties.
+        public static IRTypeNode ConstructIRType(TypeDefinition type)
+        {
+            if (type.IsEnum)
+            {
+                return new IREnum(type.FullName, type.Name);
+            }
+            else if (type.IsClass)
+            {
+                return new IRClass(type.FullName, type.Name);
+            }
+            else
+            {
+                throw new Exception("The given type can not be represented by IR");
+            }
+        }
+
         public static PropertyTypeKind DefaultTypeMapper(PropertyDefinition property, out TypeDefinition referencedType)
         {
             PropertyTypeKind fieldType = PropertyTypeKind.UNKNOWN;
@@ -26,7 +44,24 @@ namespace protoextractor.decompiler.c_sharp
                 // We SUPPOSE the actual type is a List with 1 generic parameter.
                 type = (type as GenericInstanceType).GenericArguments.First();
             }
-            switch (type.Name)
+            // Get the type by literal name.
+            fieldType = LiteralTypeMapper(type.Name);
+            if (fieldType == PropertyTypeKind.TYPE_REF)
+            {
+                // The type is not a primitive and references something else.
+                // We just resolve the reference and pass it back.. the caller can
+                // decide what to do with it.
+                var typeDefinition = type.Resolve();
+                referencedType = typeDefinition;
+            }
+
+            return fieldType;
+        }
+
+        public static PropertyTypeKind LiteralTypeMapper(string type)
+        {
+            PropertyTypeKind fieldType;
+            switch (type)
             {
                 case "Int32":
                     fieldType = PropertyTypeKind.INT32;
@@ -40,49 +75,48 @@ namespace protoextractor.decompiler.c_sharp
                 case "UInt64":
                     fieldType = PropertyTypeKind.UINT64;
                     break;
+                case "SInt32":
+                    fieldType = PropertyTypeKind.SINT32;
+                    break;
+                case "SInt64":
+                    fieldType = PropertyTypeKind.SINT64;
+                    break;
+                case "Fixed32":
+                    fieldType = PropertyTypeKind.FIXED32;
+                    break;
+                case "Fixed64":
+                    fieldType = PropertyTypeKind.FIXED64;
+                    break;
+                case "SFixed32":
+                    fieldType = PropertyTypeKind.SFIXED32;
+                    break;
+                case "SFixed64":
+                    fieldType = PropertyTypeKind.SFIXED64;
+                    break;
                 case "Boolean":
+                case "Bool":
                     fieldType = PropertyTypeKind.BOOL;
                     break;
                 case "String":
                     fieldType = PropertyTypeKind.STRING;
                     break;
-                case "Byte[]":
+                case "Byte[]": // Silentorbit
+                case "ByteString": // Google
+                case "Bytes":
                     fieldType = PropertyTypeKind.BYTES;
                     break;
                 //////////////////////////////////
                 case "Double":
                     fieldType = PropertyTypeKind.DOUBLE;
                     break;
+                case "Float":
                 case "Single":
                     fieldType = PropertyTypeKind.FLOAT;
                     break;
+                case "Enum":
                 default:
-                    // The type is not a primitive and references something else.
-                    // We just resolve the reference and pass it back.. the caller can
-                    // decide what to do with it.
-                    var typeDefinition = type.Resolve();
-                    referencedType = typeDefinition;
-                    // Register the property to be referencing something else.
+                    // Suppose the type is a reference.
                     fieldType = PropertyTypeKind.TYPE_REF;
-                    break;
-            }
-
-            return fieldType;
-        }
-
-        public static PropertyTypeKind FixedTypeMapper(IRClassProperty property)
-        {
-            PropertyTypeKind fieldType;
-            switch (property.Type)
-            {
-                case PropertyTypeKind.UINT32:
-                    fieldType = PropertyTypeKind.FIXED32;
-                    break;
-                case PropertyTypeKind.UINT64:
-                    fieldType = PropertyTypeKind.FIXED64;
-                    break;
-                default:
-                    fieldType = property.Type;
                     break;
             }
 

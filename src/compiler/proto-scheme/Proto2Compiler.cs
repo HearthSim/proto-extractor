@@ -196,7 +196,7 @@ namespace protoextractor.compiler.proto_scheme
             foreach (var prop in e.Properties.OrderBy(prop => prop.Value))
             {
                 // Enum property names are NOT converted to snake case!
-                w.WriteLine("{0}{1} = {2};", prefix + "\t", prop.Name, prop.Value);
+                w.WriteLine("{0}{1} = {2};", prefix + "\t", prop.Name.ToUpper(), prop.Value);
             }
 
             // End enum.

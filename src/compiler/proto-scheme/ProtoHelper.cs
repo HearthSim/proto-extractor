@@ -42,7 +42,7 @@ namespace protoextractor.compiler.proto_scheme
             return returnValue;
         }
 
-        // This function converts string in PascalCase to snake_case
+        // This function converts string in PascalCase to snake_case.
         // eg; BatlleNet => battle_net
         public static string PascalToSnake(this string s)
         {

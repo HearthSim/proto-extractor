@@ -5,6 +5,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using protoextractor.decompiler.c_sharp.inspectors;
+using protoextractor.compiler.proto_scheme;
 
 namespace protoextractor.decompiler.c_sharp
 {
@@ -34,7 +36,12 @@ namespace protoextractor.decompiler.c_sharp
         // class. Eg: All classes that have the interface IProtoBuf!
         public static bool MatchAnalyzableClasses(TypeDefinition t)
         {
-            return (t.IsClass && t.Interfaces.Any(i => i.Name.Equals("IProtoBuf")));
+            return
+                // Validate SilentOrbit.
+                SilentOrbitInspector.MatchAnalyzableClasses(t) ||
+                // Validate GoogleProtobuffer.
+                GoogleCSInspector.MatchAnalyzableClasses(t)
+                ;
         }
 
         public override IRClass ConstructIRClass()
@@ -71,42 +78,90 @@ namespace protoextractor.decompiler.c_sharp
                 };
                 _constructedSubject = irClass;
 
-                // Fetch the properties of the type...
-                // (At the same time, all references of this class are being collected.)
-                var props = SilentOrbitInspector.ExtractClassProperties(_subject, out references);
-                // and store the properties.
-                irClass.Properties = props;
-
-                // Extract necessary methods for decompilation
-                var serializeEnum = _subject.Methods.Where(SilentOrbitInspector.MatchSerializeMethod);
-                var deserializeEnum = _subject.Methods.Where(SilentOrbitInspector.MatchDeserializeMethod);
-                if (!serializeEnum.Any() || !deserializeEnum.Any())
+                // Test for SilentOrbit decompilation.
+                if (SilentOrbitInspector.MatchAnalyzableClasses(_subject))
                 {
-                    throw new ExtractionException("No serialize or deserialize methods found!");
+                    DecompileClass_SilentOrbit(irClass, out references);
                 }
-                MethodDefinition serialize = serializeEnum.First();
-                MethodDefinition deserialize = deserializeEnum.First();
-
-                // Create a handler for the serialize OnCall action.
-                Action<CallInfo, List<byte>> silentOrbitSerializeCallHandler = (CallInfo info, List<byte> w) =>
+                // Test for Google Protobuffer decompilation.
+                else if (GoogleCSInspector.MatchAnalyzableClasses(_subject))
                 {
-                    // Just chain the call.
-                    // Property information is updated in place!
-                    SilentOrbitInspector.SerializeOnCall(info, w, props);
-                };
-                // Walk the serialize method for additional information.
-                MethodWalker.WalkMethod(serialize, silentOrbitSerializeCallHandler, null);
-
-                // Create handler for deserialize oncall action.
-                Action<CallInfo, List<byte>> silentOrbitDeserializeCallHandler = (CallInfo info, List<byte> w) =>
+                    DecompileClass_Google(irClass, out references);
+                }
+                // Else fail..
+                else
                 {
-                    // Just chain the call.
-                    // Property information is updated in place!
-                    SilentOrbitInspector.DeserializeOnCall(info, w, props);
-                };
-                // Walk the deserialize method for additional information.
-                MethodWalker.WalkMethod(deserialize, silentOrbitDeserializeCallHandler, null);
+                    throw new ExtractionException("Unrecognized proto compiler!");
+                }
+
             }
+        }
+
+        private void DecompileClass_SilentOrbit(IRClass target, out List<TypeDefinition> references)
+        {
+            // Fetch the properties of the type...
+            // (At the same time, all references of this class are being collected.)
+            var props = SilentOrbitInspector.ExtractClassProperties(_subject, out references);
+            // and store the properties.
+            target.Properties = props;
+
+            // Extract necessary methods for decompilation
+            var serializeEnum = _subject.Methods.Where(SilentOrbitInspector.MatchSerializeMethod);
+            var deserializeEnum = _subject.Methods.Where(SilentOrbitInspector.MatchDeserializeMethod);
+            if (!serializeEnum.Any() || !deserializeEnum.Any())
+            {
+                throw new ExtractionException("No serialize or deserialize methods found!");
+            }
+            MethodDefinition serialize = serializeEnum.First();
+            MethodDefinition deserialize = deserializeEnum.First();
+
+            // Create a handler for the serialize OnCall action.
+            Action<CallInfo, List<byte>> silentOrbitSerializeCallHandler = (CallInfo info, List<byte> w) =>
+            {
+                // Just chain the call.
+                // Property information is updated in place!
+                SilentOrbitInspector.SerializeOnCall(info, w, props);
+            };
+            // Walk the serialize method for additional information.
+            MethodWalker.WalkMethod(serialize, silentOrbitSerializeCallHandler, null);
+
+            // Create handler for deserialize oncall action.
+            Action<CallInfo, List<byte>> silentOrbitDeserializeCallHandler = (CallInfo info, List<byte> w) =>
+            {
+                // Just chain the call.
+                // Property information is updated in place!
+                SilentOrbitInspector.DeserializeOnCall(info, w, props);
+            };
+            // Walk the deserialize method for additional information.
+            MethodWalker.WalkMethod(deserialize, silentOrbitDeserializeCallHandler, null);
+        }
+
+        private void DecompileClass_Google(IRClass target, out List<TypeDefinition> references)
+        {
+            // Fetch properties of the type..
+            var props = GoogleCSInspector.ExtractClassProperties(_subject, out references);
+            // Store properties.
+            target.Properties = props;
+
+            // Extract necesary methods for decompilation.
+            var serializeEnumeration = _subject.Methods.Where(GoogleCSInspector.MatchSerializeMethod);
+            if (!serializeEnumeration.Any())
+            {
+                throw new ExtractionException("No serialize method found!");
+            }
+
+            // Get serialize method.
+            var serialize = serializeEnumeration.First();
+
+            // Handler for serialize oncall action.
+            Action<CallInfo, List<byte>> googleSerializeOnCall = (CallInfo info, List<byte> w) =>
+            {
+                // Just chain the call.
+                GoogleCSInspector.SerializeOnCall(info, w, props);
+            };
+
+            // Walk serialize method.
+            MethodWalker.WalkMethod(serialize, googleSerializeOnCall, null);
         }
 
         // Construct IR property objects from enum fields
@@ -149,11 +204,20 @@ namespace protoextractor.decompiler.c_sharp
                     enumValue = (int)(uint)field.Constant;
                 }
 
+                // Unless the enum property is already UPPER_SNAKE, convert it to UPPER_SNAKE.
+                var propName = field.Name;
+                var hasLower = propName.Where(c => char.IsLower(c)).Any();
+                if (hasLower)
+                {
+                    // Convert PascalCase to UPPER_SNAKE.
+                    propName = propName.PascalToSnake();
+                }
+
                 // Add a new property to the list for this enum field
                 props.Add(new IREnumProperty
                 {
                     // Straight name copy
-                    Name = field.Name,
+                    Name = propName,
                     // If the enumValue is NOT NULL, use enum value.. else use the integer 0
                     Value = (enumValue ?? 0)
                 });

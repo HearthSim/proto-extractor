@@ -194,13 +194,13 @@ namespace protoextractor.IR
         INT64,
         UINT32,
         UINT64,
-        //SINT32,
-        //SINT64,
+        SINT32,
+        SINT64,
 
         FIXED32,
         FIXED64,
-        //SFIXED32,
-        //SFIXED64,
+        SFIXED32,
+        SFIXED64,
 
         BOOL,
         STRING,
