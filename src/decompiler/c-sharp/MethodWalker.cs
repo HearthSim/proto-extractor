@@ -290,6 +290,20 @@ namespace protoextractor.decompiler.c_sharp
                     operation.Offset = (ins.Operand as Instruction).Offset;
                     Explore(methodDef, processingQueue, processedOps, operation);
                     return;
+                case Code.Stsfld:
+                    {
+                        var arg = stack.Pop().ToString();
+                        // Don't pop for the object pointer, because this is a static 
+                        // set.
+                        var info = new StoreInfo
+                        {
+                            Conditions = new List<Condition>(conditions),
+                            Field = ins.Operand as FieldReference,
+                            Argument = arg,
+                        };
+                        _onStore(info, null);
+                    }
+                    break;
                 case Code.Stfld:
                     {
                         var arg = stack.Pop().ToString();
@@ -301,7 +315,6 @@ namespace protoextractor.decompiler.c_sharp
                             Field = ins.Operand as FieldReference,
                             Argument = arg,
                         };
-                        // TODO
                         _onStore(info, null);
                     }
                     break;

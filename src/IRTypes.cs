@@ -183,7 +183,7 @@ namespace protoextractor.IR
         public int Value;
     }
 
-
+    // DO NOT CHANGE THE ORDER OF THE PROPERTIES!
     public enum PropertyTypeKind
     {
         UNKNOWN = 0,

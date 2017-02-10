@@ -143,6 +143,25 @@ namespace protoextractor.decompiler.c_sharp
             // Store properties.
             target.Properties = props;
 
+            // Container of all parsed tags.
+            List<ulong> tags = new List<ulong>();
+            var constructEnumeration = _subject.Methods.Where(GoogleCSInspector.MatchStaticConstructor);
+            if(!constructEnumeration.Any())
+            {
+                throw new ExtractionException("No static constructor found!");
+            }
+            var construct = constructEnumeration.First();
+            Action<CallInfo, List<byte>> cctorOnCall = (CallInfo c, List<byte> w) =>
+            {
+                GoogleCSInspector.StaticCctorOnCall(c, props, tags);
+            };
+            Action<StoreInfo, List<byte>> cctorOnStore = (StoreInfo s, List<byte> w) =>
+            {
+                GoogleCSInspector.StaticCctorOnStore(s, props, tags);
+            };
+            // Walk static constructor method.
+            MethodWalker.WalkMethod(construct, cctorOnCall, cctorOnStore);
+
             // Extract necesary methods for decompilation.
             var serializeEnumeration = _subject.Methods.Where(GoogleCSInspector.MatchSerializeMethod);
             if (!serializeEnumeration.Any())

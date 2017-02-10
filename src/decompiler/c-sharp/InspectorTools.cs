@@ -123,6 +123,7 @@ namespace protoextractor.decompiler.c_sharp
             return fieldType;
         }
 
+        // Little ENDIAN order!
         public static int GetFieldTag(List<byte> written)
         {
             // Extract the field index from the bytes prepended to the actual field data.
@@ -141,12 +142,36 @@ namespace protoextractor.decompiler.c_sharp
                 throw new InvalidProgramException(
                     "bad tag bytes, not gonna recover from this state");
             }
-            // Remove all tracked bytes.
-            // The next field tag can be tracked.
-            written.Clear();
+            // The last 3 bits are reserved for 'wire type specifier'.
             tag >>= 3;
 
             return tag;
+        }
+
+        // Give this function all bytes written to write the header of a field to the wire.
+        // It will test if the last 3 bits are value 2. 2 means a length-delimited, =packed, 
+        // variable.
+        // Little ENDIAN order!
+        public static bool TagToPackedSpecifier(List<byte> tag, PropertyTypeKind fieldType)
+        {
+            // Read the last written byte.
+            var lastByte = tag.Last();
+            // Check if the written bytes are formatted according to the spec.
+            if (0 != (lastByte & 0x80))
+            {
+                throw new InvalidProgramException(
+                    "The last byte of the field header must have it's MSB set to 0!");
+            }
+
+            // Test if the last 3 bits equal 2 -> = packed | embedded message | string | bytes.
+            // ONLY PRIMITIVE TYPES CAN BE PACKED! [varint, 32-bit, or 64-bit wire types]
+            if (2 == (lastByte & 0x07) && fieldType < PropertyTypeKind.STRING)
+            {
+                return true;
+            }
+
+            // Per default, return false.
+            return false;
         }
     }
 }

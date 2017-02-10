@@ -15,6 +15,11 @@ namespace protoextractor.decompiler.c_sharp.inspectors
             return (t.IsClass && t.Interfaces.Any(i => i.Name.Equals("IMessage")));
         }
 
+        public static bool MatchStaticConstructor(MethodDefinition m)
+        {
+            return (m.IsConstructor && m.IsStatic);
+        }
+
         // Math the SilentOrbit generated Deserialize method.
         public static bool MatchDeserializeMethod(MethodDefinition method)
         {
@@ -32,14 +37,14 @@ namespace protoextractor.decompiler.c_sharp.inspectors
 
         public static void DeserializeOnCall(CallInfo info, List<byte> writtenBytes, List<IRClassProperty> properties)
         {
-            
+
         }
 
         // A method was called by our inspected method. We use the collected information (our environment)
         // to extract information about the type (and fields).
         public static void SerializeOnCall(CallInfo info, List<byte> writtenBytes, List<IRClassProperty> properties)
         {
-            if(!info.Method.Name.StartsWith("Write") || info.Method.Name.StartsWith("WriteTo"))
+            if (!info.Method.Name.StartsWith("Write") || info.Method.Name.StartsWith("WriteTo"))
             {
                 // We are in no relevant method.
                 return;
@@ -63,10 +68,96 @@ namespace protoextractor.decompiler.c_sharp.inspectors
             // Get more specific type.
             var specificType = InspectorTools.LiteralTypeMapper(type);
             property.Type = specificType;
-            // Check if property is packed.
-            // TODO ^^ 
 
             // Label and fieldTag are already set!
+        }
+
+        // Read out static constructor for FieldCodec method calls.
+        public static void StaticCctorOnCall(CallInfo info, List<IRClassProperty> properties, List<ulong> recordedTags)
+        {
+            // We want ForMessage, ForInt32, ForXXX
+            if (!info.Method.Name.StartsWith("For"))
+            {
+                return;
+            }
+
+            // The tag is at the first parameter of the method call.
+            // Properly cast it, we want an unsigned long (64 bits).
+            ulong tag;
+            var obj = info.Arguments.First();
+            var objType = Type.GetTypeCode(obj.GetType());
+            switch (objType)
+            {
+                case TypeCode.Int32:
+                    tag = (ulong)(int)obj;
+                    break;
+                case TypeCode.UInt32:
+                    tag = (ulong)(uint)obj;
+                    break;
+                case TypeCode.Int64:
+                    tag = (ulong)(long)obj;
+                    break;
+                case TypeCode.UInt64:
+                    tag = (ulong)obj;
+                    break;
+                default:
+                    throw new Exception("Unrecognized tag type!");
+            }
+            // Store the tag into the list for later use.
+            recordedTags.Add(tag);
+        }
+
+        // Read out static constructor for setters off _repeated_XXX_codec fields.
+        public static void StaticCctorOnStore(StoreInfo info, List<IRClassProperty> properties, List<ulong> recordedTags)
+        {
+            if (!info.Field.Name.StartsWith("_repeated_"))
+            {
+                return;
+            }
+
+            // Extract the property name of the field we are storing data into.
+            var property = info.Field.Name.Substring(10); // Cut off '_repeated_' from front
+            property = property.Substring(0, property.Length - 6); // Cut off '_codec' at the end
+            // Uppercase first character of property name, because .. inconsistencies..
+            property = Char.ToUpper(property[0]) + property.Substring(1);
+
+            // Find property.
+            IRClassProperty prop;
+            var propEnum = properties.Where(p => p.Name.Equals(property));
+            if (propEnum.Any())
+            {
+                prop = propEnum.First();
+            }
+            else
+            {
+                // Inconsistency happened in naming the backing field for repeated properties.
+                // Retry with a trimmed property name.
+                prop = properties.First(p => p.Name.Trim('_').Equals(property));
+            }
+            // POP matching tag for this property
+            var tag = recordedTags[0];
+            recordedTags.RemoveAt(0);
+
+            // Split tag into bytes.
+            var bytes = new List<byte>();
+            // Bytes must be gotten in Little endian format!
+            // Only send in the minimum of bytes.
+            for (int i = 0; i < sizeof(ulong); ++i)
+            {
+                // Shift bits by bytesize (8) and take last 8 bits.
+                var b = (byte)((tag >> (8 * i)) & 0xff);
+                // Push the result onto the byte list.
+                bytes.Add(b);
+                // If the MSB of this byte is 0, break the loop.
+                // => this guarantees minimal written bytes.
+                if (0 == (b & 0x80)) break;
+            }
+            // bytes contains the written tag, split per 8 bits, in little endian.
+
+            // Check if the field is packed.
+            prop.Options.IsPacked = InspectorTools.TagToPackedSpecifier(bytes, prop.Type);
+
+            return;
         }
 
         // Get all properties from the type we are analyzing.
