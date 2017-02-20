@@ -22,9 +22,9 @@ namespace protoextractor
     class Program
     {
         // Location of Game library files.
-        private static string absLibPath = @"E:\User Data\Documenten\Visual Studio 2015\Projects\CSProtoBuffCompilation\bin\Debug";
+        private static string absLibPath = @"D:\Program Files (x86)\Hearthstone-Stove\Hearthstone_Data\Managed";
         // Match function for files to analyze.
-        private static string dllFileNameGlob = "CSProtoBuffCompilation.exe";
+        private static string dllFileNameGlob = "Assembly-CSharp*.dll";
         // Output folder for proto files.
         private static string absProtoOutput = Path.GetFullPath(@".\proto-out");
         // Match function for proto files to compile.
@@ -36,7 +36,83 @@ namespace protoextractor
         // Output folder for compiled protobuffer files. -> C#
         private static string CS_absCompiledOutput = Path.GetFullPath("compiled_proto_cs");
 
-        static void Main(string[] args)
+        static int Main(string[] args)
+        {
+            // Parse commands
+            var opts = new Options();
+
+            if(args == null || args.Length == 0)
+            {
+                Console.WriteLine(opts.GetUsage(null));
+                Environment.Exit(-2);
+            }
+
+            if (!CommandLine.Parser.Default.ParseArgumentsStrict(args, opts,
+                () =>
+                {
+                    Console.WriteLine("Failed to parse arguments!");
+                    Console.WriteLine();
+                    Console.WriteLine(opts.GetUsage(null));
+                    Environment.Exit(-2);
+                }))
+            {
+                // Error
+            }
+
+            // Setup decompiler
+            var analyzer = new CSAnalyzer();
+            //Set the library path.
+            if(!Directory.Exists(opts.LibraryPath))
+            {
+                Console.WriteLine("The library path does not exist! Exiting..");
+                Environment.Exit(-1);
+            } else
+            {
+                analyzer.SetLibraryPath(opts.LibraryPath);
+            }
+            // Set input files.
+            analyzer.InputFiles = opts.InputFileName;
+
+            // Analyze
+            analyzer.Parse();
+
+            // Fetch the root for program inspection
+            var program = analyzer.GetRoot();
+
+            DependancyAnalyzer dAnalyzer = new DependancyAnalyzer(program);
+            program = dAnalyzer.Process();
+            NamespacePackager nPackager = new NamespacePackager(program);
+            program = nPackager.Process();
+            NameCollisionAnalyzer ncAnalyzer = new NameCollisionAnalyzer(program);
+            program = ncAnalyzer.Process();
+
+            // Setup compiler
+            DefaultCompiler compiler = new Proto2Compiler(program);
+            if(opts.Proto3Syntax == true)
+            {
+                compiler = new Proto3Compiler(program);
+            }
+
+            if(!Directory.Exists(opts.OutDirectory))
+            {
+                // Generate full path for directory.
+                var fullDirPath = Path.GetFullPath(opts.OutDirectory);
+                // Create directory.
+                Directory.CreateDirectory(fullDirPath);
+                Console.WriteLine("Created output directory: {0}", fullDirPath);
+                // Update options.
+                opts.OutDirectory = fullDirPath;
+
+            }
+            compiler.SetOutputPath(opts.OutDirectory);
+
+            // Write output
+            compiler.Compile();
+
+            return 0;
+        }
+
+        public static void Test()
         {
             // Setup analyzer
             var analyzer = new CSAnalyzer();

@@ -17,6 +17,9 @@ namespace protoextractor.analyzer
         // Must be SET!
         protected string _fileNameGlob;
 
+        // List of file names that need to be analyzed.
+        public List<string> InputFiles { get; set; }
+
         public DefaultAnalyzer() { }
 
         // Register the path which will be used to load files from.
@@ -40,15 +43,36 @@ namespace protoextractor.analyzer
         {
             List<string> result = new List<string>();
 
-            if (_fileNameGlob == null)
+            if (_fileNameGlob == null && (InputFiles == null || InputFiles.Count == 0))
             {
-                throw new InvalidOperationException("Call SetFileGlob(..) first!");
+                throw new InvalidOperationException("Call SetFileGlob(..) or set some input files first!");
             }
 
-            // Generate list of file names.
-            string[] files = Directory.GetFiles(_path, _fileNameGlob);
-            // Add them to the list to return.
-            result.AddRange(files);
+            if (InputFiles == null || InputFiles.Count == 0)
+            {
+                // Generate list of file names.
+                string[] files = Directory.GetFiles(_path, _fileNameGlob);
+                // Add them to the list to return.
+                result.AddRange(files);
+            }
+            else
+            {
+                // Select only the files which have a correct absolute path.
+                foreach (var ifn in InputFiles)
+                {
+                    try
+                    {
+                        // Try to create a full path.
+                        var absPath = Path.GetFullPath(ifn);
+                        // Add it to the list of resolved paths.
+                        result.Add(absPath);
+                    }
+                    catch (ArgumentException e)
+                    {
+                        Console.WriteLine("Provided filename could not be resolved! -> " + e.Message);
+                    }
+                }
+            }
 
             return result;
         }
