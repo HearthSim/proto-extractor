@@ -28,60 +28,57 @@ namespace protoextractor.processing
 
         public IRProgram Process()
         {
-            // Check if there are duplicate private types within the same class.
-            TestPrivateTypeCollision();
+            // Test for name collisions of types within the scope of the parent type.
+            CollidingPrivateTypeNames();
 
-            // Test public enums properties.
-            TestCollisionEnumProperties();
+            // Test for name collisions of types within the scope of the parent namespace.
+            CollidingPublicTypeNames();
 
-            // Check if there are not multiple types with the same shortname
-            // inside each namespace.
-            foreach (var ns in _program.Namespaces)
-            {
-                TestCollisionsWithin(ns);
-            }
+            // Test public enums properties and solve collisions.
+            CollidingPublicEnumProperties();
 
-            // Check that subnamespaces don't collide with names of types 
-            // from parent namespace.
-            TestInterNSCollisions();
+            // Test private enum properties and solve collisions.
+            CollidingPrivateEnumProperties();
+
+            // Test namespace components and namespace types to avoid exact names equal to
+            // a namespace and a certain other type(s).
+            CollidingPublicTypesInterNamespace();
 
             return _program;
         }
 
-        private void TestPrivateTypeCollision()
+        // Renames colliding names of private types, within the scope of the parent type.
+        private void CollidingPrivateTypeNames()
         {
-            // Loop all classes with private types.
-            foreach (var ns in _program.Namespaces)
+            // Get all classes with private types.
+            var targetClasses = _program.Namespaces.SelectMany(n => n.Classes).Where(c => c.PrivateTypes.Count > 0);
+
+            foreach (var irClass in targetClasses)
             {
-                var targetClasses = ns.Classes.Where(c => c.PrivateTypes.Count > 0);
-                foreach (var irClass in targetClasses)
+                // Find all private types which collide.
+                var collisions = irClass.PrivateTypes.GroupBy(x => x.ShortName)
+                                                        .Where(group => group.Count() > 1)
+                                                        .Select(group => group.Key);
+                foreach (var collision in collisions)
                 {
-                    // Find all private types which collide.
-                    var collisions = irClass.PrivateTypes.GroupBy(x => x.ShortName)
-                                                            .Where(group => group.Count() > 1)
-                                                            .Select(group => group.Key);
-                    foreach (var collision in collisions)
-                    {
-                        // Collect all types that collide.
-                        var typeList = irClass.PrivateTypes.Where(t => t.ShortName.Equals(collision)).ToList();
-                        // Remove the first occurrence, because only secondary occurrences must be renamed.
-                        typeList.RemoveAt(0);
-                        // Rename secondary occurrences.
-                        RenameTypes(typeList);
-                    }
+                    // Collect all types that collide.
+                    var typeList = irClass.PrivateTypes.Where(t => t.ShortName.Equals(collision));
+                    RenameTypes(typeList);
                 }
             }
         }
 
-        private void TestCollisionEnumProperties()
+        // Solves colliding enum keys within the scope of the parent namespace.
+        // Only public enums are scanned!
+        private void CollidingPublicEnumProperties()
         {
             // Public enums have there properties scoped by the parent namespace.
             // To avoid enum property collisions, we must check collisions accross all
             // property names per namespace.
             foreach (var ns in _program.Namespaces)
             {
-                // Fetch all properties of ALL (public + private) enums.
-                var props = ns.Enums.SelectMany(e => e.Properties);
+                // Fetch all properties of public enums.
+                var props = ns.Enums.Where(e => e.IsPrivate == false).SelectMany(e => e.Properties);
                 // Get list of collided property names.
                 var collisions = props.GroupBy(e => e.Name)
                                         .Where(group => group.Count() > 1)
@@ -91,43 +88,69 @@ namespace protoextractor.processing
                 {
                     // Get all properties of enums for the current namespace matching 
                     // the collision as name.
-                    var renameProperties = props.Where(p => p.Name.Equals(collision)).ToList();
-                    // Don't rename the first property.
-                    renameProperties.RemoveAt(0);
-                    // Rename secondary occurrences of properties.
+                    var renameProperties = props.Where(p => p.Name.Equals(collision));
                     RenameProperties(renameProperties);
                 }
             }
         }
 
+        // Solves colliding enums key names within the scope of the parent type.
+        // The scope is narrowed down because the parent type acts as a namespace.
+        private void CollidingPrivateEnumProperties()
+        {
+            // Fetch all classes from each namespace, with private types.
+            var targetClasses = _program.Namespaces.SelectMany(n => n.Classes).Where(c => c.PrivateTypes.Count > 0);
+
+            foreach (var irClass in targetClasses)
+            {
+                // We are only interested in the private enums.
+                // Enum properties are actually contained by the parent container (type or namespace) [in some languages]
+                var privateEnums = irClass.PrivateTypes.Where(t => (t is IREnum)).Cast<IREnum>();
+                // Fetch all properties of these enums.
+                var props = privateEnums.SelectMany(e => e.Properties);
+                // Get list of colliding names.
+                var collisions = props.GroupBy(e => e.Name)
+                                        .Where(group => group.Count() > 1)
+                                        .Select(group => group.Key);
+
+                foreach (var collision in collisions)
+                {
+                    // Fetch all properties that collide with this exact name.
+                    var renameProps = props.Where(p => p.Name.Equals(collision));
+                    RenameProperties(renameProps);
+                }
+            }
+
+        }
+
         // Test for shortname collisions within one namespace.
         // This does NOT test for nested type collisions!
-        private void TestCollisionsWithin(IRNamespace ns)
+        private void CollidingPublicTypeNames()
         {
-            // Throw all names of types in one list.
-            // Only select the public types, because we currently don't care about private/nested types.
-            List<string> allShortNames = new List<string>();
-            var classEnumeration = ns.Classes.Where(c => c.IsPrivate == false).Select(c => c.ShortName);
-            var enumEnumeration = ns.Enums.Where(e => e.IsPrivate == false).Select(e => e.ShortName);
-
-            allShortNames.AddRange(classEnumeration);
-            allShortNames.AddRange(enumEnumeration);
-
-            // Generate a set of unique elements from the collection.
-            // If the amount of elements doesn't match, there is a name collision.
-            var distinctSet = allShortNames.Distinct();
-            if (distinctSet.Count() != allShortNames.Count())
+            foreach (var ns in _program.Namespaces)
             {
-                // Solve the name collision..
-                SolveCollisionsWithin(ns, allShortNames, distinctSet.ToList());
-                // And rerun the test on the same namespace.
-                TestCollisionsWithin(ns);
+                // Throw all names of types in one list.
+                // Only select the public types, because we currently don't care about private/nested types.
+                List<string> allShortNames = new List<string>();
+                var classEnumeration = ns.Classes.Where(c => c.IsPrivate == false).Select(c => c.ShortName);
+                var enumEnumeration = ns.Enums.Where(e => e.IsPrivate == false).Select(e => e.ShortName);
+
+                allShortNames.AddRange(classEnumeration);
+                allShortNames.AddRange(enumEnumeration);
+
+                // Generate a set of unique elements from the collection.
+                // If the amount of elements doesn't match, there is a name collision.
+                var distinctSet = allShortNames.Distinct();
+                if (distinctSet.Count() != allShortNames.Count())
+                {
+                    // Solve the name collision(s)..
+                    SolveCollisionsWithin(ns, allShortNames);
+                }
             }
         }
 
         // Solves name collisions between types in one namespace.
-        private void SolveCollisionsWithin(IRNamespace ns, List<string> allShortNames,
-            List<string> distinctShortNames)
+        private void SolveCollisionsWithin(IRNamespace ns, List<string> allShortNames)
         {
             // Find all types which collide.
             var collisions = allShortNames.GroupBy(x => x)
@@ -139,20 +162,19 @@ namespace protoextractor.processing
                 // NO case mismatch!
                 var classesEnumeration = ns.Classes.Where(c => c.ShortName.Equals(collisionName));
                 var enumEnumeration = ns.Enums.Where(e => e.ShortName.Equals(collisionName));
+
                 // Throw them together in one list.
                 List<IRTypeNode> collidedTypes = new List<IRTypeNode>();
                 collidedTypes.AddRange(classesEnumeration);
                 collidedTypes.AddRange(enumEnumeration);
-                // Remove the first type in the list, because ONE item is allowed to remain 
-                // untouched. The others need to have their name changed.
-                collidedTypes.RemoveAt(0);
+
                 // Rename collided types.
                 RenameTypes(collidedTypes);
             }
 
         }
 
-        private void TestInterNSCollisions()
+        private void CollidingPublicTypesInterNamespace()
         {
             // For each namespace, find all parent namespace.
             // Check if the parent namespaces don't have a type that is named 

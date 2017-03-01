@@ -22,9 +22,9 @@ namespace protoextractor
     class Program
     {
         // Location of Game library files.
-        private static string absLibPath = @"D:\Program Files (x86)\Hearthstone-Stove\Hearthstone_Data\Managed";
+        private static string absLibPath = @"D:\Program Files (x86)\Hearthstone\Hearthstone_Data\Managed";
         // Match function for files to analyze.
-        private static string dllFileNameGlob = "Assembly-CSharp*.dll";
+        private static string dllFileNameGlob = "Assembly-CSharp*.original.dll";
         // Output folder for proto files.
         private static string absProtoOutput = Path.GetFullPath(@".\proto-out");
         // Match function for proto files to compile.
@@ -38,10 +38,12 @@ namespace protoextractor
 
         static int Main(string[] args)
         {
+            //Test();
+
             // Parse commands
             var opts = new Options();
 
-            if(args == null || args.Length == 0)
+            if (args == null || args.Length == 0)
             {
                 Console.WriteLine(opts.GetUsage(null));
                 Environment.Exit(-2);
@@ -62,11 +64,12 @@ namespace protoextractor
             // Setup decompiler
             var analyzer = new CSAnalyzer();
             //Set the library path.
-            if(!Directory.Exists(opts.LibraryPath))
+            if (!Directory.Exists(opts.LibraryPath))
             {
                 Console.WriteLine("The library path does not exist! Exiting..");
                 Environment.Exit(-1);
-            } else
+            }
+            else
             {
                 analyzer.SetLibraryPath(opts.LibraryPath);
             }
@@ -88,12 +91,12 @@ namespace protoextractor
 
             // Setup compiler
             DefaultCompiler compiler = new Proto2Compiler(program);
-            if(opts.Proto3Syntax == true)
+            if (opts.Proto3Syntax == true)
             {
                 compiler = new Proto3Compiler(program);
             }
 
-            if(!Directory.Exists(opts.OutDirectory))
+            if (!Directory.Exists(opts.OutDirectory))
             {
                 // Generate full path for directory.
                 var fullDirPath = Path.GetFullPath(opts.OutDirectory);
@@ -159,7 +162,7 @@ namespace protoextractor
 
             Python_TestDecompiledProtoFiles();
 
-            //Go_TestDecompiledProtoFiles();
+            Go_TestDecompiledProtoFiles();
 
             return;
         }
