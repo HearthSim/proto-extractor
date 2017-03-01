@@ -12,7 +12,7 @@ namespace protoextractor.decompiler.c_sharp.inspectors
     class SilentOrbitInspector
     {
 
-        public static bool MatchAnalyzableClasses(TypeDefinition t)
+        public static bool MatchDecompilableClasses(TypeDefinition t)
         {
             return (t.IsClass && t.Interfaces.Any(i => i.Name.Equals("IProtoBuf")));
         }

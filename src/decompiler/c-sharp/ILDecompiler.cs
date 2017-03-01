@@ -34,13 +34,13 @@ namespace protoextractor.decompiler.c_sharp
 
         // Use this method to match all definitions that can be processed by this
         // class. Eg: All classes that have the interface IProtoBuf!
-        public static bool MatchAnalyzableClasses(TypeDefinition t)
+        public static bool MatchDecompilableClasses(TypeDefinition t)
         {
             return
                 // Validate SilentOrbit.
-                SilentOrbitInspector.MatchAnalyzableClasses(t) ||
+                SilentOrbitInspector.MatchDecompilableClasses(t) ||
                 // Validate GoogleProtobuffer.
-                GoogleCSInspector.MatchAnalyzableClasses(t)
+                GoogleCSInspector.MatchDecompilableClasses(t)
                 ;
         }
 
@@ -79,12 +79,12 @@ namespace protoextractor.decompiler.c_sharp
                 _constructedSubject = irClass;
 
                 // Test for SilentOrbit decompilation.
-                if (SilentOrbitInspector.MatchAnalyzableClasses(_subject))
+                if (SilentOrbitInspector.MatchDecompilableClasses(_subject))
                 {
                     DecompileClass_SilentOrbit(irClass, out references);
                 }
                 // Test for Google Protobuffer decompilation.
-                else if (GoogleCSInspector.MatchAnalyzableClasses(_subject))
+                else if (GoogleCSInspector.MatchDecompilableClasses(_subject))
                 {
                     DecompileClass_Google(irClass, out references);
                 }

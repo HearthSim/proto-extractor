@@ -53,7 +53,7 @@ namespace protoextractor.analyzer.c_sharp
             // All analyzable types can be found at the main module of the assembly.
             var module = assembly.MainModule;
             // Fetch all analyzable types.
-            var types = module.Types.Where(ILDecompiler.MatchAnalyzableClasses);
+            var types = module.Types.Where(ILDecompiler.MatchDecompilableClasses);
             // Sort all types in ascending order.
             // This forces parent types to always be processed before nested types!
             types.OrderBy(x => x.FullName);
