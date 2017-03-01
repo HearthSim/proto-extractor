@@ -109,11 +109,22 @@ namespace protoextractor
             }
             compiler.SetOutputPath(opts.OutDirectory);
 
+            // Insert special option for the go compiler.
+            compiler.SetFileOption("go_package", Set_GoPackage_Option);
+
             // Write output
             compiler.Compile();
 
             return 0;
         }
+
+        public static string Set_GoPackage_Option(IR.IRNamespace ns, string fileName)
+        {
+            // Take the short name part of the namespace.
+            return ns.ShortName.ToLower();
+        }
+
+        // -------------------------------------------------------------
 
         public static void Test()
         {

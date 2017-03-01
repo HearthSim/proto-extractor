@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -23,12 +24,20 @@ namespace protoextractor.compiler
         // If FALSE, all proto files will be written directly under '_path'.
         public bool PackageStructured { get; set; }
 
+        // Process the incoming parameters and return a string that can be used as the value
+        // for the specified option type.
+        public delegate string OptionValueString(IR.IRNamespace ns, string fileName);
+
+        // Set of options that need to be defined at file level.
+        private Dictionary<string, OptionValueString> _fileOptions;
+
         // Forces accepting an IR program.
         public DefaultCompiler(IR.IRProgram program)
         {
             _program = program;
             DumpMode = false;
             PackageStructured = true;
+            _fileOptions = new Dictionary<string, OptionValueString>();
         }
 
         // The directory where all files will be written to.
@@ -37,6 +46,28 @@ namespace protoextractor.compiler
             _path = path;
 
             return this;
+        }
+
+        public void SetFileOption(string option, OptionValueString value)
+        {
+            if (option == null || value == null)
+            {
+                throw new Exception("Parameters are not allowed to be null!");
+            }
+
+            _fileOptions[option] = value;
+        }
+
+        protected void WriteFileOptions(IR.IRNamespace ns, string fileName, TextWriter w)
+        {
+            // Loop each option and write to the TextWriter.
+            foreach (var kv in _fileOptions)
+            {
+                var optValue = kv.Value(ns, fileName);
+                var option = string.Format("option {0} = \"{1}\";", kv.Key, optValue);
+
+                w.WriteLine(option);
+            }
         }
 
         // Compiles the IR program to the target format.

@@ -92,7 +92,7 @@ namespace protoextractor.compiler.proto_scheme
                     using (textStream)
                     {
                         // Print file header.
-                        WriteHeaderToFile(irNS, textStream);
+                        WriteHeaderToFile(irNS, constructedFileName, textStream);
                         // Print imports.
                         WriteImports(references, textStream);
                         // Write all enums..
@@ -118,7 +118,7 @@ namespace protoextractor.compiler.proto_scheme
                 using (textStream)
                 {
                     // Print file header.
-                    WriteHeaderToFile(null, textStream);
+                    WriteHeaderToFile(null, dumpFileName, textStream);
 
                     // Loop each namespace and write to the dump file.
                     foreach (var ns in _program.Namespaces)
@@ -143,19 +143,23 @@ namespace protoextractor.compiler.proto_scheme
             }
         }
 
-        private void WriteHeaderToFile(IRNamespace ns, TextWriter w)
+        private void WriteHeaderToFile(IRNamespace ns, string fileName, TextWriter w)
         {
             w.WriteLine("syntax = \"proto2\";");
             if (ns != null)
             {
                 var nsPackage = ProtoHelper.ResolvePackageName(ns);
                 w.WriteLine("package {0};", nsPackage);
+                // Write all file scoped options
+                WriteFileOptions(ns, fileName, w);
             }
             w.WriteLine();
             w.WriteLine("// Protobuffer decompiler");
             w.WriteLine("// File generated at {0}", DateTime.UtcNow);
             w.WriteLine();
         }
+
+        
 
         private void WriteImports(List<IRNamespace> referencedNamespaces, TextWriter w)
         {
