@@ -67,6 +67,7 @@
     <Compile Include="src\processing\NameCollisionAnalyzer.cs" />
     <Compile Include="src\processing\NamespacePackager.cs" />
     <Compile Include="src\Program.cs" />
+    <Compile Include="src\ProgramTest.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
