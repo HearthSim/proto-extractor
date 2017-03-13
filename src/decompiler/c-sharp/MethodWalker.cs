@@ -348,7 +348,7 @@ namespace protoextractor.decompiler.c_sharp
 						{
 							if (stack.Count < 1)
 							{
-								Console.WriteLine("err");
+								throw new InvalidOperationException("The stack count should be 1 or higer");
 							}
 							args.Add(stack.Pop());
 						}
