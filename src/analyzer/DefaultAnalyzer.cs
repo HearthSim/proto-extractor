@@ -70,7 +70,7 @@ namespace protoextractor.analyzer
 					}
 					catch (ArgumentException e)
 					{
-						Console.WriteLine("Provided filename could not be resolved! -> " + e.Message);
+						Program.Log.Warn("Provided filename could not be resolved! -> " + e.Message);
 					}
 				}
 			}

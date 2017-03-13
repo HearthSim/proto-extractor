@@ -1,13 +1,14 @@
-﻿using System;
+﻿using protoextractor.IR;
+using System;
 using System.Collections.Generic;
 using System.IO;
 
 namespace protoextractor.compiler
 {
-	abstract class DefaultCompiler
+	abstract class DefaultProtoCompiler
 	{
 		// IR of the input data.
-		protected IR.IRProgram _program;
+		protected IRProgram _program;
 		// Location where the compiled output has to be written.
 		protected string _path;
 
@@ -31,13 +32,13 @@ namespace protoextractor.compiler
 
 		// Process the incoming parameters and return a string that can be used as the value
 		// for the specified option type.
-		public delegate string OptionValueString(IR.IRNamespace ns, string fileName);
+		public delegate string OptionValueString(IRNamespace ns, string fileName);
 
 		// Set of options that need to be defined at file level.
 		private Dictionary<string, OptionValueString> _fileOptions;
 
 		// Forces accepting an IR program.
-		public DefaultCompiler(IR.IRProgram program)
+		public DefaultProtoCompiler(IRProgram program)
 		{
 			_program = program;
 			DumpMode = false;
@@ -46,7 +47,7 @@ namespace protoextractor.compiler
 		}
 
 		// The directory where all files will be written to.
-		public DefaultCompiler SetOutputPath(string path)
+		public DefaultProtoCompiler SetOutputPath(string path)
 		{
 			_path = path;
 
@@ -65,7 +66,7 @@ namespace protoextractor.compiler
 		}
 
 		// Write out all set options onto the given textstream.
-		protected void WriteFileOptions(IR.IRNamespace ns, string fileName, TextWriter w)
+		protected void WriteFileOptions(IRNamespace ns, string fileName, TextWriter w)
 		{
 			// Loop each option and write to the TextWriter.
 			foreach (var kv in _fileOptions)

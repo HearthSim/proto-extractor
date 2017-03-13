@@ -44,7 +44,7 @@ namespace protoextractor.compiler.proto_scheme
 
 	*/
 
-	class Proto3Compiler : DefaultCompiler
+	class Proto3Compiler : DefaultProtoCompiler
 	{
 		private static string _StartSpacer = "//----- Begin {0} -----";
 		private static string _EndSpacer = "//----- End {0} -----";
@@ -62,10 +62,14 @@ namespace protoextractor.compiler.proto_scheme
 
 		public override void Compile()
 		{
+			Program.Log.OpenBlock("Proto3Compiler::Compile");
+
 			if (DumpMode == true)
 			{
 				// Dump the program into one file and return.
 				Dump();
+
+				Program.Log.CloseBlock();
 				return;
 			}
 
@@ -107,6 +111,7 @@ namespace protoextractor.compiler.proto_scheme
 			}
 
 			// Finish up..
+			Program.Log.CloseBlock();
 		}
 
 		private void Dump()

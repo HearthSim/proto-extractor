@@ -2,6 +2,7 @@
 using protoextractor.compiler;
 using protoextractor.compiler.proto_scheme;
 using protoextractor.processing;
+using protoextractor.util;
 using System;
 using System.IO;
 
@@ -9,8 +10,15 @@ namespace protoextractor
 {
 	class Program
 	{
+		public static Logger Log;
+
 		static int Main(string[] args)
 		{
+			// Setup new logger
+			Log = new Logger();
+
+			Log.Info("Launched proto-extractor");
+
 			// Run the test cases.
 			// This function will exit the program after testing..
 			// ProgramTest.Test();
@@ -21,6 +29,8 @@ namespace protoextractor
 			if (args == null || args.Length == 0)
 			{
 				Console.WriteLine(opts.GetUsage(null));
+
+				Log.Exception("Parameters were incorrect");
 				Environment.Exit(-2);
 			}
 
@@ -29,11 +39,16 @@ namespace protoextractor
 			Console.WriteLine("Failed to parse arguments!");
 				Console.WriteLine();
 				Console.WriteLine(opts.GetUsage(null));
+
+				Log.Exception("Parameters were incorrect");
 				Environment.Exit(-2);
 			}))
 			{
 				// Error
 			}
+
+			// Update logger with command line parameters.
+			Log.SetParams(opts);
 
 			// Setup decompiler
 			var analyzer = new CSAnalyzer();
@@ -41,6 +56,8 @@ namespace protoextractor
 			if (!Directory.Exists(opts.LibraryPath))
 			{
 				Console.WriteLine("The library path does not exist! Exiting..");
+
+				Log.Exception("Library path was not found");
 				Environment.Exit(-1);
 			}
 			else
@@ -56,15 +73,26 @@ namespace protoextractor
 			// Fetch the root for program inspection
 			var program = analyzer.GetRoot();
 
-			DependancyAnalyzer dAnalyzer = new DependancyAnalyzer(program);
-			program = dAnalyzer.Process();
-			NamespacePackager nPackager = new NamespacePackager(program);
-			program = nPackager.Process();
+			//*----- Searches and resolves circular dependancies -----*//
+			DependancyAnalyzer depAnalyzer = new DependancyAnalyzer(program);
+			program = depAnalyzer.Process();
+
+			//*----- Uses longest substring matching to group namespaces into common packages -----*//
+			AutoPackager nsPackager = new AutoPackager(program);
+			program = nsPackager.Process();
+
+			//*----- Manually move matching namespaces into another -----*//
+			ManualPackager manualPackager = new ManualPackager(program);
+			// Match keywoard is case sensitive!
+			manualPackager.AddMapping("pegasus.spectator", "SpectatorProto");
+			program = manualPackager.Process();
+
+			//*----- Searches and resolves name collisions of various types -----*//
 			NameCollisionAnalyzer ncAnalyzer = new NameCollisionAnalyzer(program);
 			program = ncAnalyzer.Process();
 
 			// Setup compiler
-			DefaultCompiler compiler = new Proto2Compiler(program);
+			DefaultProtoCompiler compiler = new Proto2Compiler(program);
 			if (opts.Proto3Syntax == true)
 			{
 				compiler = new Proto3Compiler(program);
@@ -76,7 +104,7 @@ namespace protoextractor
 				var fullDirPath = Path.GetFullPath(opts.OutDirectory);
 				// Create directory.
 				Directory.CreateDirectory(fullDirPath);
-				Console.WriteLine("Created output directory: {0}", fullDirPath);
+				Log.Info("Created output directory: {0}", fullDirPath);
 				// Update options.
 				opts.OutDirectory = fullDirPath;
 
@@ -87,15 +115,18 @@ namespace protoextractor
 			// compiler.SetFileOption("go_package", Set_GoPackage_Option);
 
 			// Write output
+			// All paths for created files are lowercased!
 			compiler.Compile();
+
+			Log.Info("Finished extracting");
 
 			return 0;
 		}
 
-		public static string Set_GoPackage_Option(IR.IRNamespace ns, string fileName)
-		{
-			// Take the short name part of the namespace.
-			return ns.ShortName.ToLower();
-		}
+		//public static string Set_GoPackage_Option(IR.IRNamespace ns, string fileName)
+		//{
+		//    // Take the short name part of the namespace.
+		//    return ns.ShortName.ToLower();
+		//}
 	}
 }

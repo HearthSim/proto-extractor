@@ -43,7 +43,7 @@ namespace protoextractor.compiler.proto_scheme
 	        Each namespace maps to ONE package!
 
 	*/
-	class Proto2Compiler : DefaultCompiler
+	class Proto2Compiler : DefaultProtoCompiler
 	{
 		private static string _StartSpacer = "//----- Begin {0} -----";
 		private static string _EndSpacer = "//----- End {0} -----";
@@ -58,10 +58,14 @@ namespace protoextractor.compiler.proto_scheme
 
 		public override void Compile()
 		{
+			Program.Log.OpenBlock("Proto2Compiler::Compile");
+
 			if (DumpMode == true)
 			{
 				// Dump all data into one file and return.
 				Dump();
+
+				Program.Log.CloseBlock();
 				return;
 			}
 
@@ -103,6 +107,7 @@ namespace protoextractor.compiler.proto_scheme
 			}
 
 			// Finish up..
+			Program.Log.CloseBlock();
 		}
 
 		private void Dump()

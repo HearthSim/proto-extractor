@@ -160,7 +160,7 @@ namespace protoextractor.analyzer.c_sharp
 					}
 					catch (decompiler.ExtractionException)
 					{
-						Console.WriteLine("`{0}` is not a valid Protobuffer class.", nestedType.FullName);
+						Program.Log.Debug("`{0}` is not a valid Protobuffer class.", nestedType.FullName);
 					}
 
 					// Recursively inspect the nested type for private types.
@@ -273,12 +273,14 @@ namespace protoextractor.analyzer.c_sharp
 
 		public override DefaultAnalyzer Parse()
 		{
+			Program.Log.OpenBlock("DefaultAnalyzer::Parse()");
+
 			SetupAssemblyResolver();
 
 			List<string> analyzableFiles = GetAnalyzableFileNames();
 			foreach (var assemblyFileName in analyzableFiles)
 			{
-				Console.WriteLine("Processing assembly at location `{0}`", assemblyFileName);
+				Program.Log.Info("Processing assembly at location `{0}`", assemblyFileName);
 				// Load assembly file from the given location.
 				AssemblyDefinition ass = AssemblyDefinition.ReadAssembly(assemblyFileName,
 																		 _resolverParameters);
@@ -292,6 +294,7 @@ namespace protoextractor.analyzer.c_sharp
 			// Replace all placeholder references with actual IRTypes.
 			UpdatePlaceholderReferences();
 
+			Program.Log.CloseBlock();
 			return this;
 		}
 

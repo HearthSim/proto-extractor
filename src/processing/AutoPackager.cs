@@ -4,32 +4,32 @@ using System.Linq;
 
 namespace protoextractor.processing
 {
-	class NamespacePackager
+	class AutoPackager: DefaultProcessor
 	{
 		/*
 		    This class tries to group multiple namespaces in packages.
 		    The grouping algorithm checks for shared substrings in namespace's fullnames.
 		*/
 
-		private IRProgram _program;
-
 		// Cache of all generated names for each namespace object.
 		private Dictionary<IRNamespace, string> _packagedNSNames;
 
-		public NamespacePackager(IRProgram program)
+		public AutoPackager(IRProgram program): base(program)
 		{
-			_program = program;
 			_packagedNSNames = new Dictionary<IRNamespace, string>();
 		}
 
-		public IRProgram Process()
+		public override IRProgram Process()
 		{
+			Program.Log.OpenBlock("AutoPackager::Process()");
+
 			// Generate packages for each namespace.
 			ProcessPackageNames();
 
 			// Update each namespace (and containing types).
 			UpdateNamespaces();
 
+			Program.Log.CloseBlock();
 			return _program;
 		}
 

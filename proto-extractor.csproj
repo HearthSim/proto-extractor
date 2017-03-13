@@ -50,7 +50,7 @@
     <Compile Include="src\analyzer\c-sharp\CSAnalyzer.cs" />
     <Compile Include="src\analyzer\c-sharp\TypeDefinitionComparer.cs" />
     <Compile Include="src\analyzer\DefaultAnalyzer.cs" />
-    <Compile Include="src\compiler\DefaultCompiler.cs" />
+    <Compile Include="src\compiler\DefaultProtoCompiler.cs" />
     <Compile Include="src\compiler\proto-scheme\Proto2Compiler.cs" />
     <Compile Include="src\compiler\proto-scheme\Proto3Compiler.cs" />
     <Compile Include="src\compiler\proto-scheme\ProtoHelper.cs" />
@@ -61,11 +61,14 @@
     <Compile Include="src\decompiler\c-sharp\inspectors\SilentOrbitInspector.cs" />
     <Compile Include="src\decompiler\DefaultDecompiler.cs" />
     <Compile Include="src\IRTypes.cs" />
-    <Compile Include="src\Options.cs" />
+    <Compile Include="src\util\Logger.cs" />
+    <Compile Include="src\util\Options.cs" />
+    <Compile Include="src\processing\DefaultProcessor.cs" />
     <Compile Include="src\processing\DependancyAnalyzer.cs" />
     <Compile Include="src\processing\DependancyUtil.cs" />
+    <Compile Include="src\processing\ManualPackager.cs" />
     <Compile Include="src\processing\NameCollisionAnalyzer.cs" />
-    <Compile Include="src\processing\NamespacePackager.cs" />
+    <Compile Include="src\processing\AutoPackager.cs" />
     <Compile Include="src\Program.cs" />
     <Compile Include="src\ProgramTest.cs" />
   </ItemGroup>

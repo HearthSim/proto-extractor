@@ -22,19 +22,24 @@ namespace protoextractor.compiler.proto_scheme
 				{
 					var nsName = ns.FullName;
 					// Split namespace name to generate hierarchy.
+					// The last piece is the actual filename of the namespace.
 					var pathPieces = nsName.Split('.').ToList();
-					// Use the shortname as filename.
+
+					// Use the shortname as actual filename.
 					pathPieces.Add(ns.ShortName + ".proto");
+
 					// Combine all pieces into a valid path structure.
+					// And append the proto file extension.
 					var path = Path.Combine(pathPieces.ToArray());
-					returnValue.Add(ns, path);
+					// Always lowercase paths!
+					returnValue.Add(ns, path.ToLower());
 				}
 			}
 			else
 			{
 				foreach (var ns in nsList)
 				{
-					returnValue.Add(ns, ns.FullName + ".proto");
+					returnValue.Add(ns, ns.FullName.ToLower() + ".proto");
 				}
 			}
 
@@ -49,6 +54,11 @@ namespace protoextractor.compiler.proto_scheme
 			return string.Concat(chars).Trim('_').ToLower();
 		}
 
+		// Converts a namespace to a package string.
+		// The package string is based on the location of the actual file.
+		// The package string equals the (relative) path to the folder containing files that
+		// share the same package as parent.
+		// eg: pkg_parent.pkg_child => <rel path>/pkg_parent/pkg_child/some_file.proto
 		public static string ResolvePackageName(IRNamespace ns)
 		{
 			return ns.FullName.ToLower();
@@ -57,78 +67,69 @@ namespace protoextractor.compiler.proto_scheme
 		public static string ResolveTypeReferenceString(IRClass current, IRTypeNode reference)
 		{
 			var returnValue = "";
-			// If current and reference share the same namespace, no package name is added.
-			var curNS = GetNamespaceForType(current);
-			var refNS = GetNamespaceForType(reference);
+			List<IRProgramNode> currentTypeChain; // We are not interested in this one.
+			List<IRProgramNode> referenceTypeChain;
 
-			// If the namespaces of both types don't match, the reference is made to another package.
+			// Check the parent namespace of both types.
+			var curNS = GetNamespaceForType(current, out currentTypeChain);
+			var refNS = GetNamespaceForType(reference, out referenceTypeChain);
+			// Remove the namespace element so it does not interfere with dynamic string building.
+			referenceTypeChain.RemoveAt(0);
+
+			// If the namespaces match, a reference to another namespace (=package) must not be made.
 			if (curNS != refNS)
 			{
-				var pkgRefNS = ResolvePackageName(refNS);
-				returnValue = returnValue + pkgRefNS + ".";
+				// Update returnValue with the full package name of the namespace.
+				returnValue += ResolvePackageName(refNS) + ".";
 			}
 
-			// If reference is a private type, the public parent is added.. unless current
-			// IS THE PUBLIC PARENT.
-			if (!IsParentOffType(current, reference))
+			// If current type occurs within the referenceType chain, update the chain
+			// so it references relative to that type.
+			if (referenceTypeChain.Contains(current))
 			{
-				if (reference.IsPrivate)
-				{
-					// Find public parent of reference.
-					var pubType = FindPublicParent(reference);
-					returnValue = returnValue + pubType.ShortName + ".";
-				}
+				var removeIdx = referenceTypeChain.IndexOf(current);
+				referenceTypeChain.RemoveRange(0, removeIdx + 1);
 			}
 
+			// Dynamically construct a path to the referenced type.
+			// The chain does NOT include the referenced type itself!
+			foreach (var type in referenceTypeChain)
+			{
+				returnValue += type.ShortName + ".";
+			}
+			// Finish with the name of the referenced type itself.
 			return returnValue + reference.ShortName;
 		}
 
-		// Goes up the parent chain looking for the first type that's not private.
-		public static IRProgramNode FindPublicParent(IRTypeNode type)
-		{
-			IRProgramNode checkType = type;
-			while (checkType.IsPrivate)
-			{
-				checkType = checkType.Parent;
-			}
-
-			return checkType;
-		}
-
-		// Recursively check all parents of child. If one of the parents matches 'parent',
-		// TRUE will be returned.
-		public static bool IsParentOffType(IRProgramNode parent, IRProgramNode child)
-		{
-			var p = child.Parent;
-			while (p != null)
-			{
-				if (p == parent)
-				{
-					return true;
-				}
-
-				p = p.Parent;
-			}
-
-			return false;
-		}
-
 		// Returns the namespace object for the given object.
-		public static IRNamespace GetNamespaceForType(IRTypeNode type)
+		public static IRNamespace GetNamespaceForType(IRTypeNode type,
+													  out List<IRProgramNode> parentChain)
 		{
+			// Keep track of the path towards the parent namespace.
+			parentChain = new List<IRProgramNode>();
+			IRNamespace result = null;
+
 			// Recursively call all parents until namespace is reached
 			var p = type.Parent;
 			while (p != null)
 			{
+				// Add p as parent.
+				parentChain.Add(p);
+
 				if (p is IRNamespace)
 				{
-					return p as IRNamespace;
+					result = p as IRNamespace;
+					break;
 				}
 
 				p = p.Parent;
 			}
 
-			return null;
+			// Reverse chain so that it starts with the namespace.
+			// The last element in the list is the direct parent of the type.
+			parentChain.Reverse();
+
+			return result;
 		}
 
 		// Returns a set of namespaces referenced by the given namespace.

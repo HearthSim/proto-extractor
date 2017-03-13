@@ -1,6 +1,8 @@
-﻿using protoextractor.analyzer.c_sharp;
+﻿using Mono.Cecil;
+using protoextractor.analyzer.c_sharp;
 using protoextractor.compiler;
 using protoextractor.compiler.proto_scheme;
+using protoextractor.IR;
 using protoextractor.processing;
 using System;
 using System.Diagnostics;
@@ -25,7 +27,7 @@ namespace protoextractor
 		private static string absLibPath =
 			@"D:\Program Files (x86)\Hearthstone\Hearthstone_Data\Managed";
 		// Match function for files to analyze.
-		private static string dllFileNameGlob = "Assembly-CSharp*.original.dll";
+		private static string dllFileNameGlob = "Assembly-CSharp*.dll";
 		// Output folder for proto files.
 		private static string absProtoOutput = Path.GetFullPath(@".\proto-out");
 		// Match function for proto files to compile.
@@ -39,6 +41,8 @@ namespace protoextractor
 
 		public static void Test()
 		{
+			Program.Log.OpenBlock("ProgramTest::Test");
+
 			// Setup analyzer
 			var analyzer = new CSAnalyzer();
 			analyzer
@@ -52,20 +56,60 @@ namespace protoextractor
 			// Fetch the IL program root from the analyzer.
 			var program = analyzer.GetRoot();
 
-			// Analyze and solve circular dependancies.
-			DependancyAnalyzer depAnalyzer = new DependancyAnalyzer(program);
-			program = depAnalyzer.Process();
+			//ManualPackager manPackager = new ManualPackager(program);
+			//manPackager.AddMapping("bnet.bnet", "bnet");
+			//manPackager.AddMapping("pegasus.pegasus", "Pegasus");
+			//program = manPackager.Process();
+
+			try
+			{
+				// Analyze and solve circular dependancies.
+				DependancyAnalyzer depAnalyzer = new DependancyAnalyzer(program);
+				// Use DryRun to only report without solving!
+				// depAnalyzer.DryRun();
+				program = depAnalyzer.Process();
+			}
+			catch (CircularException<IRTypeNode> e)
+			{
+				// The exception came from colliding namespaces.
+				if (e.InnerException != null && e.InnerException is CircularException<IRNamespace>)
+				{
+					// Get circle of namespaces.
+					var circle = string.Join(" -> ",
+											 ((CircularException<IRNamespace>)e.InnerException).CircularDependancies);
+					// Also print the offending types.
+					var offendingTypes = e.CircularDependancies;
+					var strOffendingTypes = string.Join("\n", offendingTypes);
+
+					Program.Log.Exception("Circular dependancy found between namespaces `{0}`\nOffending types:\n{1}",
+										  e, circle, strOffendingTypes);
+				}
+				else // The exception came from colliding types.
+				{
+					var circle = string.Join(" -> ", e.CircularDependancies);
+					Program.Log.Exception("Circular dependancy found between types `{0}`", e, circle);
+				}
+
+				Environment.Exit(-1);
+			}
 
 			// Group matching namespaces under a common package.
-			NamespacePackager nsPackager = new NamespacePackager(program);
+			// This can be done before or after resolving the collisions because no
+			// relations are added between programnodes.
+			AutoPackager nsPackager = new AutoPackager(program);
 			program = nsPackager.Process();
+
+			ManualPackager manualPackager = new ManualPackager(program);
+			// Match keywoard is case sensitive!
+			manualPackager.AddMapping("pegasus.spectator", "SpectatorProto");
+			program = manualPackager.Process();
 
 			// Analyze and fix name collisions.
 			NameCollisionAnalyzer nameAnalyzer = new NameCollisionAnalyzer(program);
 			program = nameAnalyzer.Process();
 
 			// Construct protobuffer files from the parsed data.
-			DefaultCompiler compiler;
+			DefaultProtoCompiler compiler;
 			// Use proto3 syntax.
 			// compiler = new Proto3Compiler(program);
 			// Use proto2 syntax.
@@ -80,13 +124,16 @@ namespace protoextractor
 			// Write output.
 			.Compile();
 
-			//CSharp_TestDecompiledProtoFiles();
+			////CSharp_TestDecompiledProtoFiles();
 
+			Program.Log.OpenBlock("Python compilation");
 			Python_TestDecompiledProtoFiles();
+			Program.Log.CloseBlock();
 
-			Go_TestDecompiledProtoFiles();
+			//Go_TestDecompiledProtoFiles();
 
 			// End the program.
+			Program.Log.CloseBlock();
 			Environment.Exit(0);
 		}
 

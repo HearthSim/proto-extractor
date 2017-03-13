@@ -2,7 +2,7 @@
 using CommandLine.Text;
 using System.Collections.Generic;
 
-namespace protoextractor
+namespace protoextractor.util
 {
 	class Options
 	{
@@ -36,6 +36,23 @@ namespace protoextractor
 		/* List of (absolute path) input filenames */
 		[ValueList(typeof(List<string>))]
 		public List<string> InputFileName
+		{
+			get;
+			set;
+		}
+
+		// Set this to false on release
+		[Option("debug", Required = false, DefaultValue = true,
+				HelpText = "This switch allows debug print statements to work.")]
+		public bool DebugMode
+		{
+			get;
+			set;
+		}
+
+		[Option("log", Required = false, DefaultValue = "",
+				HelpText = "The path to the file where all output will be redirected to.")]
+		public string LogFile
 		{
 			get;
 			set;
