@@ -5,7 +5,7 @@ using System.Linq;
 
 namespace protoextractor.processing
 {
-	class DependancyAnalyzer
+	class DependancyAnalyzer : DefaultProcessor
 	{
 		/*
 		    This class attempts to resolve circular dependancies in the given program structure.
@@ -18,9 +18,6 @@ namespace protoextractor.processing
 			UNDEAD
 		}
 
-		// Object containing our IR structure.
-		private IRProgram _program;
-
 		// Maps types to their parent namespace.
 		private Dictionary<IRTypeNode, IRNamespace> _TypeNSMapper;
 
@@ -30,18 +27,35 @@ namespace protoextractor.processing
 		// Direct relations between types.
 		private Dictionary<IRTypeNode, HashSet<IRTypeNode>> _TypeDependancies;
 
-		public DependancyAnalyzer(IR.IRProgram program)
+		// Find circular dependancies, but do not solve them.
+		private bool _DryRun
 		{
-			_program = program;
+			get;
+			set;
+		}
+
+		public DependancyAnalyzer(IRProgram program) : base(program)
+		{
+			_DryRun = false;
 
 			_TypeNSMapper = new Dictionary<IRTypeNode, IRNamespace>();
 			_NSDependancies = new Dictionary<IRNamespace, HashSet<IRNamespace>>();
 			_TypeDependancies = new Dictionary<IRTypeNode, HashSet<IRTypeNode>>();
 		}
 
-		// Processes the given program (INPLACE) and returns it.
-		public IRProgram Process()
+		// Tests for circular dependancies, but does not solve them.
+		public DependancyAnalyzer DryRun()
 		{
+			_DryRun = true;
+
+			return this;
+		}
+
+		// Processes the given program (INPLACE) and returns it.
+		public override IRProgram Process()
+		{
+			Program.Log.OpenBlock("DependancyAnalyzer::Process()");
+
 			// Loop until no more circular dependancies are known.
 			while (true)
 			{
@@ -55,6 +69,11 @@ namespace protoextractor.processing
 				}
 				catch (CircularException<IRTypeNode> e)
 				{
+					if (_DryRun == true)
+					{
+						throw;
+					}
+
 					// Resolve the circular type thing.
 					var circle = e.CircularDependancies;
 					ResolveCircularTypes(circle);
@@ -72,6 +91,23 @@ namespace protoextractor.processing
 				catch (CircularException<IRNamespace> e)
 				{
 					var circle = e.CircularDependancies;
+
+					if (_DryRun == true)
+					{
+						var lastButLeast = circle.Count - 2;
+						// Resolve offending types
+						var outTypes = GetAllReferencingClasses(circle[0], circle[1]);
+						var inTypes = GetAllReferencingClasses(circle[lastButLeast], circle[0]);
+
+						// Throw all types together and keep an unique list.
+						List<IRTypeNode> groupedTypes = new List<IRTypeNode>();
+						groupedTypes.AddRange(outTypes);
+						groupedTypes.AddRange(inTypes);
+						groupedTypes = groupedTypes.Distinct().ToList();
+
+						throw new CircularException<IRTypeNode>(groupedTypes, e);
+					}
+
 					// Resolve the circular namespaces.
 					ResolveCircularNS(circle);
 
@@ -82,6 +118,7 @@ namespace protoextractor.processing
 				break;
 			}
 
+			Program.Log.CloseBlock();
 			return _program;
 		}
 
@@ -541,6 +578,11 @@ namespace protoextractor.processing
 		}
 
 		public CircularException(List<T> circ)
+		{
+			CircularDependancies = circ;
+		}
+
+		public CircularException(List<T> circ, Exception inner): base("", inner)
 		{
 			CircularDependancies = circ;
 		}
