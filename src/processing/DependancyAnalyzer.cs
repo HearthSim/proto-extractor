@@ -34,9 +34,13 @@ namespace protoextractor.processing
 			set;
 		}
 
+		// Keep track of the amount of times we processed the entire program structure.
+		private int Runs;
+
 		public DependancyAnalyzer(IRProgram program) : base(program)
 		{
 			_DryRun = false;
+			Runs = 0;
 
 			_TypeNSMapper = new Dictionary<IRTypeNode, IRNamespace>();
 			_NSDependancies = new Dictionary<IRNamespace, HashSet<IRNamespace>>();
@@ -59,6 +63,8 @@ namespace protoextractor.processing
 			// Loop until no more circular dependancies are known.
 			while (true)
 			{
+				Runs++;
+
 				// Construct dependancy data.
 				CreateDependancyGraph();
 
@@ -117,6 +123,8 @@ namespace protoextractor.processing
 
 				break;
 			}
+
+			Program.Log.Info("Resolved all circular dependancies within {0} runs.", Runs);
 
 			Program.Log.CloseBlock();
 			return _program;
