@@ -22,8 +22,10 @@ eg; ```astyle.exe --options=hearthsim_codestyle.ini --recursive "./*.cs"```
 Compile the program.
 Give it the library files you want to decompile and if you want proto2 or proto3 syntax.
 
-The program will do it's thing; resolve circular dependancies and name collisions for you.
-It will also try to package different files based on their namespace through substring matching.
+The program will do the following actions automatically:
+
+* resolve circular dependancies;
+* resolve name collisions.
 
 usage example: 
 ```bash
@@ -33,13 +35,34 @@ proto-extractor --libPath "%HS_LOCATION%\Hearthstone_Data\Managed"
 "%HS_LOCATION%\Hearthstone_Data\Managed\Assembly-CSharp-firstpass.dll" 
 ```
 
-## License
+## Options
+
+### Automatic packaging
+
+The option `--automatic-packaging` will try to group namespaces under the same namespace if their names show similarities. The used algorithm is longest substring matching, with anchorpoint at the beginning of the string. Half-words are cut to the nearest namespace component.
+
+### Manual packaging
+
+The option `--manual-package-file "PATH-TO-INI-FILE"` can be used manually move content of namespaces or specific types to other/new namespaces. See the file `stove-proto-packaging.ini` in the root of the repo for examples. It's important to keep the order of processing algorithms in mind!
+
+## Order of processing algorithms
+
+The execution order of processing algorithms is always as follows:
+
+1. Resolve circular dependancies;
+2. Automatic packaging of namespaces;
+3. Manual packaging of namespaces;
+4. Resolving name collisions.
+
+This order takes both full control and automatisation in consideration.
+
+# License
 
 proto-extractor is licensed under the terms of the MIT license.
 The full license text is available in the `LICENSE` file.
 
 
-## Community
+# Community
 
 proto-extractor is a [HearthSim](http://hearthsim.info) project. All development
 happens on our IRC channel `#hearthsim` on [Freenode](https://freenode.net).

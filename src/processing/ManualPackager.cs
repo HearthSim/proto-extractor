@@ -3,6 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using IniParser;
+using IniParser.Model;
 
 namespace protoextractor.processing
 {
@@ -13,18 +15,27 @@ namespace protoextractor.processing
 		    Types not declared by the types file will remain in their original position.
 		*/
 
-		// Keys: Namespace name.
-		// Values: String to match against program namespaces.
-		private Dictionary<string, string> _typeMapper;
+		private static StringComparison CASE_INSENSITIVE = StringComparison.OrdinalIgnoreCase;
 
-		public ManualPackager(IRProgram program) : base(program)
+		// INI file indicating where each input type will be moved to.
+		private string _typesFile;
+
+		// Contains all loaded configuration data.
+		private IniData _confContents;
+
+		public ManualPackager(IRProgram program, string typesFile) : base(program)
 		{
-			_typeMapper = new Dictionary<string, string>();
+			_typesFile = typesFile;
 		}
 
 		public override IRProgram Process()
 		{
 			Program.Log.OpenBlock("ManualPackager::Process()");
+
+			if (!ProcessINIFile())
+			{
+				throw new Exception("INI file could not be processed!");
+			}
 
 			// Relocate (move) types according to matching rules.
 			ProcessRelocation();
@@ -35,32 +46,54 @@ namespace protoextractor.processing
 			return _program;
 		}
 
-		// Store a new mapping from program namespaces to the given namespace.
-		// nsName will be the name of the new namespace.
-		// ! nsName must be a valid namespace name, see IR.IRNamespace.
-		// nsFullNameMatcher is the string to match against existing namespaces. Every namespace
-		// that matches will have (all) it's types moved to the new namespace.
-		// Matching is CASE-SENSITIVE.
-		public void AddMapping(string nsName, string nsFullNameMatcher)
+		private bool ProcessINIFile()
 		{
-			_typeMapper[nsName] = nsFullNameMatcher;
+			var parser = new FileIniDataParser();
+			_confContents = parser.ReadFile(_typesFile);
+
+			return true;
 		}
 
 		private void ProcessRelocation()
 		{
-			foreach (var nsMapping in _typeMapper)
+			// Moves types first because they are handpicked.
+			var typeList = _confContents["types"];
+			if (typeList.Count > 0)
 			{
-				var nsName = nsMapping.Key;
-				var nsMatch = nsMapping.Value;
+				RelocateTypes(typeList);
+			}
+
+			var nsList = _confContents["namespaces"];
+			if (nsList.Count > 0)
+			{
+				RelocateNamespaces(nsList);
+			}
+		}
+
+		private void RelocateNamespaces(KeyDataCollection nsList)
+		{
+			foreach (var nsMapping in nsList)
+			{
+				var targetNSName = nsMapping.Value;
+				var sourceNSName = nsMapping.KeyName;
 
 				// First look for all source namespaces.
 				// Force instant execution instead of deferring to the foreach loop (first moment of collection query).
-				var sourceNSEnumeration = _program.Namespaces.Where(ns => ns.FullName.Contains(
-																		nsMatch)).ToList();
-				// Create the target namespace.
-				var targetNS = _program.GetCreateNamespace(nsName);
+				var sourceNSEnumeration = _program.Namespaces.Where(ns => ns.FullName.Equals(
+																		sourceNSName, CASE_INSENSITIVE)).ToList();
 
-				Program.Log.Info("Match `{0}`, {1} namespace(s) found as source", nsMatch,
+				// Don't create a new namespace if there is nothing to move.
+				if (sourceNSEnumeration.Count == 0)
+				{
+					Program.Log.Warn("No source namespaces found for match `{0}`, there is nothing to move",
+									 sourceNSName);
+					continue;
+				}
+
+				// Create the target namespace.
+				var targetNS = _program.GetCreateNamespace(targetNSName);
+
+				Program.Log.Info("Match `{0}`, {1} namespace(s) found as source", sourceNSName,
 								 sourceNSEnumeration.Count);
 
 				// Move all types to target namespace.
@@ -88,6 +121,35 @@ namespace protoextractor.processing
 					{
 						irEnum.UpdateTypeReferences(targetNS, sourceNS);
 					}
+
+					Program.Log.Debug("Bulk move from namespace `{0}` to `{1}` succeeded", sourceNS.FullName,
+									  targetNSName);
+				}
+			}
+		}
+
+		private void RelocateTypes(KeyDataCollection typeList)
+		{
+			foreach (var typeEntry in typeList)
+			{
+				var typeName = typeEntry.KeyName;
+				var targetNSName = typeEntry.Value;
+
+				var targetNS = _program.GetCreateNamespace(targetNSName);
+				try
+				{
+					if (_program.MovePublicTypeToNamespace(typeName, targetNS, CASE_INSENSITIVE))
+					{
+						Program.Log.Debug("Moved type `{0}` to namespace `{1}`", typeName, targetNSName);
+					}
+					else
+					{
+						Program.Log.Warn("Type `{0}` was not found", typeName);
+					}
+				}
+				catch (IRMoveException e)
+				{
+					Program.Log.Warn("Problem occurred while moving type `{0}`: {1}", typeName, e.Message);
 				}
 			}
 		}

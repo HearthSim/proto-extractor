@@ -28,10 +28,16 @@ namespace protoextractor
 			@"D:\Program Files (x86)\Hearthstone\Hearthstone_Data\Managed";
 		// Match function for files to analyze.
 		private static string dllFileNameGlob = "Assembly-CSharp*.dll";
+		// File indicating which types to move manually
+		private static string manualMoveConfig =
+			@"D:\Go\src\github.com\HearthSim\proto-extractor\stove-proto-packaging.ini";
+
 		// Output folder for proto files.
 		private static string absProtoOutput = Path.GetFullPath(@".\proto-out");
 		// Match function for proto files to compile.
 		private static string protoFileNameGlob = "*.proto";
+
+
 		// Output folder for compiled protobuffer files. -> GO
 		private static string GO_absCompiledOutput = Path.GetFullPath("compiled_proto_go");
 		// Output folder for compiled protobuffer files. -> PYTHON
@@ -41,6 +47,11 @@ namespace protoextractor
 
 		public static void Test()
 		{
+			Program.Log.SetParams(new util.Options()
+			{
+				DebugMode = true
+			});
+
 			Program.Log.OpenBlock("ProgramTest::Test");
 
 			// Setup analyzer
@@ -56,10 +67,9 @@ namespace protoextractor
 			// Fetch the IL program root from the analyzer.
 			var program = analyzer.GetRoot();
 
-			//ManualPackager manPackager = new ManualPackager(program);
-			//manPackager.AddMapping("bnet.bnet", "bnet");
-			//manPackager.AddMapping("pegasus.pegasus", "Pegasus");
-			//program = manPackager.Process();
+			// Namespaces should always be lowercased!
+			LowerCaseNamespaces lcProcessor = new LowerCaseNamespaces(program);
+			program = lcProcessor.Process();
 
 			try
 			{
@@ -99,10 +109,8 @@ namespace protoextractor
 			AutoPackager nsPackager = new AutoPackager(program);
 			program = nsPackager.Process();
 
-			ManualPackager manualPackager = new ManualPackager(program);
-			// Match keywoard is case sensitive!
-			manualPackager.AddMapping("pegasus.spectator", "SpectatorProto");
-			program = manualPackager.Process();
+			ManualPackager manPackager = new ManualPackager(program, manualMoveConfig);
+			program = manPackager.Process();
 
 			// Analyze and fix name collisions.
 			NameCollisionAnalyzer nameAnalyzer = new NameCollisionAnalyzer(program);
