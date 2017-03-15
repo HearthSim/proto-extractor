@@ -68,7 +68,7 @@ namespace protoextractor.util
 		private void SetupLogStream(string logfile)
 		{
 			// No log file given; assign standard out
-			if (logfile.Count() == 0)
+			if (logfile == null || logfile.Length == 0)
 			{
 				OutStream = Console.Out;
 				return;
