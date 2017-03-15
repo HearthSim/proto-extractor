@@ -63,6 +63,7 @@ namespace protoextractor.compiler.proto_scheme
 		public override void Compile()
 		{
 			Program.Log.OpenBlock("Proto3Compiler::Compile");
+			Program.Log.Info("Writing proto files to folder `{0}`", _path);
 
 			if (DumpMode == true)
 			{
