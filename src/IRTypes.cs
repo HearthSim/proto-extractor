@@ -127,7 +127,7 @@ namespace protoextractor.IR
 		    The shortname is the last character sequence part of the fullname.
 		    In case of the previous example, it's subsubnamespace.
 
-		    Namespace names are ALWAYS lowercased!
+		    !! Namespace names are ALWAYS lowercased !!
 		*/
 
 		// All classes found directly under this namespace.
@@ -299,10 +299,12 @@ namespace protoextractor.IR
 		*/
 		public static IRNamespace GetCreateNamespace(this IRProgram program, string nsFullName)
 		{
-			var targetNS = program.Namespaces.FirstOrDefault(ns => ns.FullName.Equals(nsFullName));
+			var targetNS = program.Namespaces.FirstOrDefault(ns => ns.FullName.Equals(nsFullName,
+															 StringComparison.OrdinalIgnoreCase));
 			if (targetNS == null)
 			{
-				targetNS = new IRNamespace(nsFullName, null);
+				// Namespace names should always be lowercased!
+				targetNS = new IRNamespace(nsFullName.ToLower(), null);
 				program.Namespaces.Add(targetNS);
 			}
 
@@ -316,7 +318,7 @@ namespace protoextractor.IR
 		    Returns true if the type was found and moved. False if the type was not found.
 		*/
 		public static bool MovePublicTypeToNamespace(this IRProgram program, string typeFullName,
-													 IRNamespace targetNamespace)
+													 IRNamespace targetNamespace, StringComparison casing = StringComparison.Ordinal)
 		{
 			bool found = false;
 			IRNamespace sourceNS = null;
@@ -326,8 +328,8 @@ namespace protoextractor.IR
 			// Locate the type - could be class or enum.
 			foreach (var ns in program.Namespaces)
 			{
-				foundClass = ns.Classes.FirstOrDefault(c => c.FullName.Equals(typeFullName));
-				foundEnum = ns.Enums.FirstOrDefault(e => e.FullName.Equals(typeFullName));
+				foundClass = ns.Classes.FirstOrDefault(c => c.FullName.Equals(typeFullName, casing));
+				foundEnum = ns.Enums.FirstOrDefault(e => e.FullName.Equals(typeFullName, casing));
 
 				// If found, remove it from the parent namespace.
 				if (foundClass != null || foundEnum != null)
