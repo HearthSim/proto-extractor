@@ -335,7 +335,7 @@ namespace protoextractor.IR
 					// We don't move private types!
 					if (foundClass?.IsPrivate == true || foundEnum?.IsPrivate == true)
 					{
-						throw new Exception("This method does not move private types!");
+						throw new IRMoveException("This method does not move private types!");
 					}
 
 					ns.Classes.Remove(foundClass);
@@ -432,6 +432,19 @@ namespace protoextractor.IR
 			{
 				// We leave private types alone because they must keep referencing their parent class.
 			}
+		}
+	}
+
+	public class IRMoveException : Exception
+	{
+		public IRMoveException(string message)
+		: base(message)
+		{
+		}
+
+		public IRMoveException(string message, Exception inner)
+		: base(message, inner)
+		{
 		}
 	}
 }
