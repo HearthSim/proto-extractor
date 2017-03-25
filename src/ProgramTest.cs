@@ -71,6 +71,9 @@ namespace protoextractor
 			LowerCaseNamespaces lcProcessor = new LowerCaseNamespaces(program);
 			program = lcProcessor.Process();
 
+			ManualPackager manPackager = new ManualPackager(program, manualMoveConfig);
+			program = manPackager.Process();
+
 			try
 			{
 				// Analyze and solve circular dependancies.
@@ -108,9 +111,6 @@ namespace protoextractor
 			// relations are added between programnodes.
 			AutoPackager nsPackager = new AutoPackager(program);
 			program = nsPackager.Process();
-
-			ManualPackager manPackager = new ManualPackager(program, manualMoveConfig);
-			program = manPackager.Process();
 
 			// Analyze and fix name collisions.
 			NameCollisionAnalyzer nameAnalyzer = new NameCollisionAnalyzer(program);

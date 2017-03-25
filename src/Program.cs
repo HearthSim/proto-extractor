@@ -77,6 +77,13 @@ namespace protoextractor
 				LowerCaseNamespaces lcProcessor = new LowerCaseNamespaces(program);
 				program = lcProcessor.Process();
 
+				if (opts.ManualPackagingFile.Length > 0)
+				{
+					//*----- Manually move matching namespaces into another -----*//
+					ManualPackager manualPackager = new ManualPackager(program, opts.ManualPackagingFile);
+					program = manualPackager.Process();
+				}
+
 				if (opts.ResolveCircDependancies)
 				{
 					//*----- Searches and resolves circular dependancies -----*//
@@ -91,13 +98,6 @@ namespace protoextractor
 					program = nsPackager.Process();
 				}
 
-				if (opts.ManualPackagingFile.Length > 0)
-				{
-					//*----- Manually move matching namespaces into another -----*//
-					ManualPackager manualPackager = new ManualPackager(program, opts.ManualPackagingFile);
-					program = manualPackager.Process();
-				}
-
 				if (opts.ResolveCollisions)
 				{
 					//*----- Searches and resolves name collisions of various types -----*//
@@ -110,7 +110,7 @@ namespace protoextractor
 			catch (Exception e)
 			{
 				Log.Exception("Exception occurred while processing!", e);
-				Environment.Exit(-10);
+				Environment.Exit(-8);
 			}
 
 			// Setup compiler
