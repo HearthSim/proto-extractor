@@ -25,7 +25,8 @@ Give it the library files you want to decompile and if you want proto2 or proto3
 The program will do the following actions automatically:
 
 * resolve circular dependancies;
-* resolve name collisions.
+* resolve name collisions;
+* generates proto2 syntax output.
 
 usage example: 
 ```bash
@@ -37,24 +38,47 @@ proto-extractor --libPath "%HS_LOCATION%\Hearthstone_Data\Managed"
 
 ## Options
 
+### Proto3
+
+The option `--proto3` will use the proto3 compiler to generate .proto files with protobuffer 3 syntax.
+
+> Defaults to False.
+
+### Resolve circular dependancies
+
+The option `--resolve-circular-dependancies` will run a processor object that detects and solves circular dependancies for you. Both circular dependancies between types and namespaces are detected.
+
+> Defaults to True.
+
+### Resolve name collisions
+
+The option `--resolve-name-collisions` will run a processor object that detects and solves all kinds of name collisions for you. See the processor code for more details.
+
+> Defaults to True.
+
 ### Automatic packaging
 
 The option `--automatic-packaging` will try to group namespaces under the same namespace if their names show similarities. The used algorithm is longest substring matching, with anchorpoint at the beginning of the string. Half-words are cut to the nearest namespace component.
 
+> Defaults to False.
+
 ### Manual packaging
 
-The option `--manual-package-file "PATH-TO-INI-FILE"` can be used manually move content of namespaces or specific types to other/new namespaces. See the file `stove-proto-packaging.ini` in the root of the repo for examples. It's important to keep the order of processing algorithms in mind!
+The option `--manual-package-file "PATH-TO-INI-FILE"` can be used manually move content of namespaces or specific types to other/new namespaces. See the file `stove-proto-packaging.ini` in the root of the repo for examples. 
+
+It's important to keep the order of processing algorithms in mind! We shouldn't try to manually compensate the behaviour of the automatic dependancy resolver. This has to do with trying to keep a consistent layout of outputted protobuffer files regarding the absolute dependancy on the source material.
+
+> Defaults to "" (empty string) -> nothing will happen.
 
 ## Order of processing algorithms
 
 The execution order of processing algorithms is always as follows:
 
-1. Resolve circular dependancies;
+1. Manual packaging of namespaces;
+2. Resolve circular dependancies;
 2. Automatic packaging of namespaces;
-3. Manual packaging of namespaces;
-4. Resolving name collisions.
+3. Resolving name collisions.
 
-This order takes both full control and automatisation in consideration.
 
 # License
 
