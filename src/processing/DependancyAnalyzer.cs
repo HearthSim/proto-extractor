@@ -11,6 +11,12 @@ namespace protoextractor.processing
 		    This class attempts to resolve circular dependancies in the given program structure.
 		*/
 
+		// It might be needed to extract types into a seperate namespace.
+		// There is an algorithm that tries to generate a sensible name and to lower the chances to clash
+		// this string is appended to the name.
+		// See ResolveCircularTypes(..)
+		private const string EXTRACTED_NS_SUFFIX = "_extracted";
+
 		enum NODE_STATE
 		{
 			ALIVE,
@@ -313,30 +319,25 @@ namespace protoextractor.processing
 
 			// TODO: Better naming algorithm?! (Longest commong substring)
 			// The longest substring between the fullnames of each type's namespace.
-			// TODO: This might clash with existing namespace names! check for that..
 			var allTypeNamespaceNames = circle.Select(type => _TypeNSMapper[type].FullName).ToList();
 			var newNSName = DependancyUtil.LongestmatchingSubstring(allTypeNamespaceNames).Trim('.');
 			// Also construct a shortname from the new namespace fullname
 			var newNSShortName = newNSName.Substring(newNSName.LastIndexOf('.') + 1);
 
-			var nsEndPart = ".extracted";
-			newNSName = newNSName + nsEndPart;
-			newNSShortName = newNSShortName + nsEndPart;
+			// Append the suffix to lower chances of collision
+			newNSName = newNSName + EXTRACTED_NS_SUFFIX;
+			newNSShortName = newNSShortName + EXTRACTED_NS_SUFFIX;
 
-			var newNS = new IRNamespace(newNSName, newNSShortName)
-			{
-				Classes = new List<IRClass>(),
-				Enums = new List<IREnum>(),
-			};
-
+			// There still might already be a namespace with that name, so a test is necessary anyway!
+			var newNS = _program.GetCreateNamespace(newNSName);
+			// And copy over all types to this namespace.
 			foreach (var irClass in distincttypes)
 			{
 				var oldNS = _TypeNSMapper[irClass];
 				MoveType(irClass, oldNS, newNS);
 			}
 
-			// Add new namespace to the program.
-			_program.Namespaces.Add(newNS);
+			// No need to add the namespace to the program anymore!
 		}
 
 		#endregion
