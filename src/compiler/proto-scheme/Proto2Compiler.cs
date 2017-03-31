@@ -49,6 +49,9 @@ namespace protoextractor.compiler.proto_scheme
 		private static string _EndSpacer = "//----- End {0} -----";
 		private static string _Spacer = "//------------------------------";
 
+		// String used to reference the original name from the source library.
+		private static string _Reference = "{0}ref: {1}";
+
 		// Mapping of all namespace objects to their location on disk.
 		private Dictionary<IRNamespace, string> _NSLocationCache;
 
@@ -159,8 +162,11 @@ namespace protoextractor.compiler.proto_scheme
 				WriteFileOptions(ns, fileName, w);
 			}
 			w.WriteLine();
-			w.WriteLine("// Protobuffer decompiler");
-			w.WriteLine("// File generated at {0}", DateTime.UtcNow);
+
+			var firstComment = "Protobuffer decompiler";
+			var fileGeneration = string.Format("File generated at {0}", DateTime.UtcNow);
+			WriteComments(w, firstComment, fileGeneration);
+
 			w.WriteLine();
 		}
 
@@ -200,6 +206,9 @@ namespace protoextractor.compiler.proto_scheme
 
 		private void WriteEnum(IREnum e, TextWriter w, string prefix)
 		{
+			var reference = string.Format(_Reference, prefix, e.OriginalName);
+			WriteComments(w, reference);
+
 			// Type names are kept in PascalCase!
 			w.WriteLine("{0}enum {1} {{", prefix, e.ShortName);
 
@@ -232,6 +241,9 @@ namespace protoextractor.compiler.proto_scheme
 
 		private void WriteMessage(IRClass c, TextWriter w, string prefix)
 		{
+			var reference = string.Format(_Reference, prefix, c.OriginalName);
+			WriteComments(w, reference);
+
 			// Type names are kept in PascalCase!
 			w.WriteLine("{0}message {1} {{", prefix, c.ShortName);
 			// Write all private types first!
