@@ -19,10 +19,6 @@ namespace protoextractor
 
 			Log.Info("Launched proto-extractor");
 
-			// Run the test cases.
-			// This function will exit the program after testing..
-			ProgramTest.Test();
-
 			// Parse commands
 			var opts = new ExtendedOptions();
 
