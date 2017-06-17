@@ -1,7 +1,13 @@
-
-Microsoft Visual Studio Solution File, Format Version 11.00
-# Visual Studio 2010
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.26430.13
+MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "proto-extractor", "proto-extractor.csproj", "{8E951FFD-91D0-4A76-A0B9-BFD438461D45}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{57D6B3B8-3B70-4499-A0F7-19998A92E829}"
+	ProjectSection(SolutionItems) = preProject
+		.editorconfig = .editorconfig
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -13,6 +19,9 @@ Global
 		{8E951FFD-91D0-4A76-A0B9-BFD438461D45}.Debug|x86.Build.0 = Debug|x86
 		{8E951FFD-91D0-4A76-A0B9-BFD438461D45}.Release|x86.ActiveCfg = Release|x86
 		{8E951FFD-91D0-4A76-A0B9-BFD438461D45}.Release|x86.Build.0 = Release|x86
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(MonoDevelopProperties) = preSolution
 		StartupItem = proto-extractor.csproj
