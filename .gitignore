@@ -6,3 +6,4 @@ obj/
 res/
 packages/
 src/ProgramTest.cs
+.vs/
