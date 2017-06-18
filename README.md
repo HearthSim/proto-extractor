@@ -29,7 +29,7 @@ Extended usage example:
 
 ```bash
 proto-extractor --libPath "%HS_LOCATION%/Hearthstone_Data/Managed" 
---outPath "./proto-out" --proto3 --automatic-packaging --manual-package-file "%REPO%/stove-proto-packaging.ini"
+--outPath "./proto-out" --proto3 --automatic-packaging --manual-package-file "%REPO%/hscode-proto-packaging.ini"
 "%HS_LOCATION%/Hearthstone_Data/Managed/Assembly-CSharp.dll" 
 "%HS_LOCATION%/Hearthstone_Data/Managed/Assembly-CSharp-firstpass.dll" 
 ```
@@ -64,7 +64,7 @@ The option `--automatic-packaging` will try to group namespaces under the same n
 
 ### Manual packaging
 
-The option `--manual-package-file "PATH-TO-INI-FILE"` can be used manually move content of namespaces or specific types to other/new namespaces. See the file `stove-proto-packaging.ini` in the root of the repo for examples. 
+The option `--manual-package-file "PATH-TO-INI-FILE"` can be used manually move content of namespaces or specific types to other/new namespaces. See the file `hscode-proto-packaging.ini` in the root of the repo for examples. 
 
 It's important to keep the order of processing algorithms in mind! We shouldn't try to manually compensate the behaviour of the automatic dependancy resolver. This has to do with trying to keep a consistent layout of outputted protobuffer files regarding the absolute dependancy on the source material.
 
