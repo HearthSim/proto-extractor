@@ -50,8 +50,14 @@ namespace protoextractor.compiler.proto_scheme
 		// eg; BatlleNet => battle_net
 		public static string PascalToSnake(this string s)
 		{
-			var chars = s.Select((c, i) => (char.IsUpper(c)) ? ("_" + c.ToString()) : c.ToString());
-			return string.Concat(chars).Trim('_').ToLower();
+			IEnumerable<string> chars = s.Select((c, i) =>
+			{
+				// Create underscore for each encountered Uppercase character.
+				// Except when the previous character in original string is also Uppercase.
+				char prevChar = (i == 0) ? 'a' : s.ElementAt(i - 1);
+				return (Char.IsUpper(c) && !Char.IsUpper(prevChar)) ? ("_" + c.ToString()) : c.ToString();
+			});
+			return String.Concat(chars).Trim('_').ToLower();
 		}
 
 		// Converts a namespace to a package string.
