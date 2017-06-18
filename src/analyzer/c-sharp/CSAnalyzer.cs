@@ -280,12 +280,20 @@ namespace protoextractor.analyzer.c_sharp
 			List<string> analyzableFiles = GetAnalyzableFileNames();
 			foreach (var assemblyFileName in analyzableFiles)
 			{
-				Program.Log.Info("Processing assembly at location `{0}`", assemblyFileName);
-				// Load assembly file from the given location.
-				AssemblyDefinition ass = AssemblyDefinition.ReadAssembly(assemblyFileName,
-																		 _resolverParameters);
-				// And process..
-				AnalyzeAssembly(ass);
+				try
+				{
+					// Load assembly file from the given location.
+					AssemblyDefinition ass = AssemblyDefinition.ReadAssembly(assemblyFileName,
+																			 _resolverParameters);
+
+					Program.Log.Info("Processing assembly at location `{0}`", assemblyFileName);
+					// And process..
+					AnalyzeAssembly(ass);
+				}
+				catch (BadImageFormatException e)
+				{
+					Program.Log.Exception("DLL file contains invalid data!", e);
+				}
 			}
 
 			// Analyze all referenced types.
