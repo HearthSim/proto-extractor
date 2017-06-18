@@ -163,7 +163,7 @@ namespace protoextractor.compiler.proto_scheme
 			}
 			w.WriteLine();
 
-			var firstComment = "Protobuffer decompiler";
+			var firstComment = "Proto extractor compiled unit - https://github.com/HearthSim/proto-extractor";
 			var fileGeneration = string.Format("File generated at {0}", DateTime.UtcNow);
 			WriteComments(w, firstComment, fileGeneration);
 
