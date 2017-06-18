@@ -1,21 +1,8 @@
-# proto-extractor
+# Proto-extractor
 
 A C# program to extract [Protocol Buffer definitions](https://developers.google.com/protocol-buffers/)
 compiled with [Google Protos](https://github.com/google/protobuf)
 or [SilentOrbit](https://silentorbit.com/protobuf/).
-
-
-# Code formatting
-
-This project uses [AStyle](http://astyle.sourceforge.net/) to keep it's contents formatted.
-Take the following steps to format all source code:
-
-1. Download [AStyle](http://astyle.sourceforge.net/)
-2. If needed, compile, and add the binary to your PATH variable
-3. Run the formatter on all \*.cs files with the formatting options file found in the root of the repo.
-When using the recursive option, don't let your terminal expand the wildcard. 
-AStyle is capable of handling the wildcard itself.
-eg; ```astyle.exe --options=hearthsim_codestyle.ini --recursive "./*.cs"```
 
 # Usage
 
@@ -28,13 +15,26 @@ The program will do the following actions automatically:
 * resolve name collisions;
 * generates proto2 syntax output.
 
-usage example: 
+Basic usage example: 
 ```bash
-proto-extractor --libPath "%HS_LOCATION%\Hearthstone_Data\Managed" 
+proto-extractor --libPath "%HS_LOCATION%/Hearthstone_Data/Managed" 
 --outPath "./proto-out" 
-"%HS_LOCATION%\Hearthstone_Data\Managed\Assembly-CSharp.dll" 
-"%HS_LOCATION%\Hearthstone_Data\Managed\Assembly-CSharp-firstpass.dll" 
+"%HS_LOCATION%/Hearthstone_Data/Managed/Assembly-CSharp.dll" 
+"%HS_LOCATION%/Hearthstone_Data/Managed/Assembly-CSharp-firstpass.dll" 
 ```
+
+Extended usage example:
+
+> This command is used to generate protobuffer files for [HS proto repository](https://github.com/HearthSim/hsproto)
+
+```bash
+proto-extractor --libPath "%HS_LOCATION%/Hearthstone_Data/Managed" 
+--outPath "./proto-out" --proto3 --automatic-packaging --manual-package-file "%REPO%/stove-proto-packaging.ini"
+"%HS_LOCATION%/Hearthstone_Data/Managed/Assembly-CSharp.dll" 
+"%HS_LOCATION%/Hearthstone_Data/Managed/Assembly-CSharp-firstpass.dll" 
+```
+
+> The section `Options` explains all parameters. The executable will write parameter parsing errors on standard outstream.
 
 ## Options
 
