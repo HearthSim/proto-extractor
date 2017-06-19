@@ -79,12 +79,27 @@ The execution order of processing algorithms is always as follows:
 2. Automatic packaging of namespaces;
 3. Resolving name collisions.
 
+# Proto file extraction from binaries
+
+At the root of the repository you'll find a python3 script that extracts protobuffer files from arbitrary binary files. 
+
+>**This only works on proto files which have been compiled with the Google Protobuffer compiler tool (protoc)!** Use the proto-extractor project for hearthstone related proto files.
+
+## Usage
+
+The only requirement for this script is the [Google Protobuffer package](https://pypi.python.org/pypi/protobuf) which you can install through pip. A quick setup guide is given below.
+
+1. Install virtualenv; `pip3 install virtualenv`
+2. Create a virtual environment inside the CWD; `py -3 -m virtualenv ./.env`
+3. Activate the environment; `./env/Scripts/activate`
+4. Install protobuf package; `pip install protobuf`
+5. Run the proto extraction script; `python protobin_to_proto.py -o [out-dir] [inputfile [inputfiles ..]]`
+6. Extracted proto files can be found inside [out-dir], the script will output any found, valid filename.
 
 # License
 
-proto-extractor is licensed under the terms of the MIT license.
+Proto-extractor is licensed under the terms of the MIT license.
 The full license text is available in the `LICENSE` file.
-
 
 # Community
 
