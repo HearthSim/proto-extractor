@@ -5,6 +5,7 @@ import sys
 import google.protobuf.descriptor_pb2 as pb2
 from google.protobuf.internal.decoder import _DecodeVarint
 from google.protobuf.message import DecodeError
+import zlib
 
 
 def is_valid_path(filepath):
@@ -106,7 +107,6 @@ class ProtobinDecompiler:
     def __init__(self):
         self.out = None
         self.indent_level = 0
-        self.unknown_name_counter = 0
 
     def decompile(self, file, out_dir=".", stdout=False):
         data = file.read()
@@ -116,16 +116,14 @@ class ProtobinDecompiler:
         descriptors = []
 
         # Discover wire-encoded FileDescriptorProto's
+        print("Checking for wire-encoded proto files!")
         descriptors.extend(self.discover_encoded_file_descriptor(data))
         # Discover GZipped FileDescriptorProto's
-        # descriptors.extend(self.discover_gzipped_file_descriptor(data))
+        print("Checking for GZIPPED proto files!")
+        descriptors.extend(self.discover_gzipped_file_descriptor(data))
 
         for descriptor in descriptors:
             descriptor_name = descriptor.name
-            if len(descriptor_name) == 0:
-                descriptor_name = "name_unkn_%d.proto" % self.unknown_name_counter
-                self.unknown_name_counter += 1
-
             if stdout:
                 self.out = sys.stdout
             else:
@@ -206,9 +204,55 @@ class ProtobinDecompiler:
         return descriptors
 
     def discover_gzipped_file_descriptor(self, data):
-        descriptors_data = []
+        descriptors = []
 
-        return descriptors_data
+        # Magic string / ID
+        # Including 'deflate' compression method
+        gzip_header = bytearray.fromhex('1f8b08')
+
+        offset = 0
+        while offset < len(data):
+            try:
+                p = data.index(gzip_header, offset)
+                # Next iteration must start after p!
+                offset = p + 1
+
+                # Setup new decompression system
+                decompressed_data = bytearray()
+                d = zlib.decompressobj(zlib.MAX_WBITS | 32)
+                inner_offset = p
+                try:
+                    while not d.eof:
+                        # Slice data per 64 bytes
+                        slice = data[inner_offset:inner_offset + 64]
+                        inner_offset += len(slice)
+                        d_data = d.decompress(slice)
+                        decompressed_data.extend(d_data)
+                except zlib.error:
+                    # Invalid compression block encountered
+                    continue
+
+                # Decompressed data should be exact!
+                try:
+                    # Bytearray MUST be converted to a bytestring
+                    proto_data = bytes(decompressed_data)
+                    descriptor = pb2.FileDescriptorProto.FromString(proto_data)
+                    # Unnamed proto's are malformed and we don't want them!
+                    if len(descriptor.name) > 0:
+                        print("HIT `%s`" % descriptor.name)
+                        descriptors.append(descriptor)
+                except DecodeError:
+                    pass
+
+                # Test remaining data and calculate next offset
+                remaining_data = d.unused_data
+                offset = inner_offset - len(remaining_data)
+
+            except ValueError:
+                # End of file reached
+                break
+
+        return descriptors
 
     def decompile_file_descriptor(self, descriptor):
         # deserialize package name and dependencies
