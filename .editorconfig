@@ -6,13 +6,17 @@ root = true
 # Global settings
 [*]
 charset = utf-8
+end_of_line  = lf
 insert_final_newline = true
 
 # Global settings for code files
 [*.{cs,vb,md}]
 indent_style = tab
 tab_width = 4
-end_of_line  = lf
+
+[*.{py}]
+indent_style = space
+tab_width = 4
 
 # CSharp code style settings:
 [*.cs]
