@@ -7,3 +7,5 @@ res/
 packages/
 src/ProgramTest.cs
 .vs/
+.env/
+.vscode/
