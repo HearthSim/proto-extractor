@@ -9,3 +9,4 @@ src/ProgramTest.cs
 .vs/
 .env/
 .vscode/
+proto-extractor.csproj.user
