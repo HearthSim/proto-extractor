@@ -36,9 +36,12 @@ namespace protoextractor.compiler.proto_scheme
 					// The last piece is the actual filename of the namespace.
 					var pathPieces = nsName.Split('.').ToList();
 
+					// Use the shortname as actual filename.
+					pathPieces.Add(ns.ShortName + ".proto");
+
 					// Combine all pieces into a valid path structure.
 					// And append the proto file extension.
-					var path = Path.Combine(pathPieces.ToArray()) + ".proto";
+					var path = Path.Combine(pathPieces.ToArray());
 					// Always lowercase paths!
 					returnValue.Add(ns, path.ToLower());
 				}
