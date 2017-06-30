@@ -10,3 +10,4 @@ src/ProgramTest.cs
 .env/
 .vscode/
 proto-extractor.csproj.user
+extractor/Properties/
