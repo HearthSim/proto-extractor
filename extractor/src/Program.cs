@@ -5,6 +5,7 @@ using protoextractor.compiler.proto_scheme;
 using protoextractor.processing;
 using protoextractor.util;
 using System;
+using System.Collections.Generic;
 using System.IO;
 
 namespace protoextractor
@@ -44,7 +45,7 @@ namespace protoextractor
 				analyzer.SetLibraryPath(opts.LibraryPath);
 			}
 			// Set input files.
-			analyzer.InputFiles = opts.InputFileNames;
+			analyzer.InputFiles = new List<string>(opts.InputFileNames);
 
 			// Analyze
 			analyzer.Parse();

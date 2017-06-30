@@ -35,7 +35,7 @@ namespace protoextractor.util
 
 		/* List of (absolute path) input filenames */
 		[Value(0)]
-		public List<string> InputFileNames
+		public IEnumerable<string> InputFileNames
 		{
 			get;
 			set;
