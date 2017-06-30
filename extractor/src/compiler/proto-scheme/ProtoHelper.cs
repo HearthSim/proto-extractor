@@ -8,6 +8,17 @@ namespace protoextractor.compiler.proto_scheme
 {
 	public static class ProtoHelper
 	{
+		// Returns true if the provided enum uses aliases inside the body.
+		public static bool HasEnumAlias(IREnum enumType)
+		{
+			var propertyValues = enumType.Properties.Select(x => x.Value);
+			var propertyLength = propertyValues.Count();
+			var distinctPropertyLength = propertyValues.Distinct().Count();
+
+			// TRUE if distinct length is different from normal length.
+			return propertyLength != distinctPropertyLength;
+		}
+
 		// Converts given namespace objects into paths.
 		// The returned string is a relative path to the set '_path' property!
 		public static Dictionary<IRNamespace, string> NamespacesToFileNames(

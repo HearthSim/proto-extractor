@@ -212,7 +212,10 @@ namespace protoextractor.compiler.proto_scheme
 			// Type names are kept in PascalCase!
 			w.WriteLine("{0}enum {1} {{", prefix, e.ShortName);
 
-			// WE SUPPOSE there are NOT multiple properties with the same value.
+			if (ProtoHelper.HasEnumAlias(e))
+			{
+				w.WriteLine("{0}option allow_alias = true;", prefix + "\t");
+			}
 
 			// Write out all properties of the enum.
 			foreach (var prop in e.Properties.OrderBy(prop => prop.Value))
