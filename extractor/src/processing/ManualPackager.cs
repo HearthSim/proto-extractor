@@ -1,10 +1,8 @@
 ﻿using protoextractor.IR;
+using protoextractor.util;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using IniParser;
-using IniParser.Model;
 
 namespace protoextractor.processing
 {
@@ -15,13 +13,13 @@ namespace protoextractor.processing
 		    Types not declared by the types file will remain in their original position.
 		*/
 
-		private static StringComparison CASE_INSENSITIVE = StringComparison.OrdinalIgnoreCase;
+		private static StringComparison CASE_INSENSITIVE = StringComparison.CurrentCultureIgnoreCase;
 
 		// INI file indicating where each input type will be moved to.
 		private string _typesFile;
 
 		// Contains all loaded configuration data.
-		private IniData _confContents;
+		private IniParser _iniData;
 
 		public ManualPackager(IRProgram program, string typesFile) : base(program)
 		{
@@ -48,34 +46,33 @@ namespace protoextractor.processing
 
 		private bool ProcessINIFile()
 		{
-			var parser = new FileIniDataParser();
-			_confContents = parser.ReadFile(_typesFile);
+			_iniData = IniParser.FromFile(_typesFile);
 
-			return true;
+			return _iniData != null;
 		}
 
 		private void ProcessRelocation()
 		{
 			// Moves types first because they are handpicked.
-			var typeList = _confContents["types"];
+			var typeList = _iniData["types"];
 			if (typeList.Count > 0)
 			{
 				RelocateTypes(typeList);
 			}
 
-			var nsList = _confContents["namespaces"];
+			var nsList = _iniData["namespaces"];
 			if (nsList.Count > 0)
 			{
 				RelocateNamespaces(nsList);
 			}
 		}
 
-		private void RelocateNamespaces(KeyDataCollection nsList)
+		private void RelocateNamespaces(Dictionary<string, string> nsList)
 		{
 			foreach (var nsMapping in nsList)
 			{
 				var targetNSName = nsMapping.Value;
-				var sourceNSName = nsMapping.KeyName;
+				var sourceNSName = nsMapping.Key;
 
 				// First look for all source namespaces.
 				// Force instant execution instead of deferring to the foreach loop (first moment of collection query).
@@ -128,11 +125,11 @@ namespace protoextractor.processing
 			}
 		}
 
-		private void RelocateTypes(KeyDataCollection typeList)
+		private void RelocateTypes(Dictionary<string, string> typeList)
 		{
 			foreach (var typeEntry in typeList)
 			{
-				var typeName = typeEntry.KeyName;
+				var typeName = typeEntry.Key;
 				var targetNSName = typeEntry.Value;
 
 				var targetNS = _program.GetCreateNamespace(targetNSName);

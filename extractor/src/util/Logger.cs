@@ -51,7 +51,8 @@ namespace protoextractor.util
 		{
 			try
 			{
-				OutStream.Close();
+				OutStream.Flush();
+				OutStream.Dispose();
 			}
 			catch (Exception)
 			{
@@ -78,7 +79,8 @@ namespace protoextractor.util
 			try
 			{
 				logfile = Path.GetFullPath(logfile);
-				OutStream = new StreamWriter(logfile, false);
+				FileStream fStream = File.OpenWrite(logfile);
+				OutStream = new StreamWriter(fStream);
 			}
 			catch (Exception e)
 			{

@@ -35,7 +35,7 @@ namespace protoextractor.analyzer.c_sharp
 		private void SetupAssemblyResolver()
 		{
 			// Assemblyresolver locates assembly dependancies for us.
-			DefaultAssemblyResolver resolver = new DefaultAssemblyResolver();
+			var resolver = new DirAssemblyResolver();
 			// The directory of the actual library is added because most dependancies
 			// are located within the same folder.
 			resolver.AddSearchDirectory(_path);

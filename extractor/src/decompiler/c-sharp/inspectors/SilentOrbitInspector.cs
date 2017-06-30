@@ -12,7 +12,7 @@ namespace protoextractor.decompiler.c_sharp.inspectors
 
 		public static bool MatchDecompilableClasses(TypeDefinition t)
 		{
-			return (t.IsClass && t.Interfaces.Any(i => i.Name.Equals("IProtoBuf")));
+			return (t.IsClass && t.Interfaces.Any(i => i.InterfaceType.Name.Equals("IProtoBuf")));
 		}
 
 		// Math the SilentOrbit generated Deserialize method.
@@ -38,12 +38,12 @@ namespace protoextractor.decompiler.c_sharp.inspectors
 				var property = properties.First(x => x.Name.Equals(propName));
 
 				// Hardcode internationalization values for converting values to strings.
-				var prevInternationalization = Thread.CurrentThread.CurrentCulture;
-				Thread.CurrentThread.CurrentCulture = CultureInfo.CreateSpecificCulture("en-GB");
+				var prevInternationalization = CultureInfo.CurrentCulture;
+				CultureInfo.CurrentCulture = new CultureInfo("en-GB");
 				// Get the value that's gonna be set to the property.
 				var val = info.Arguments[1].ToString();
 				// Restore.
-				Thread.CurrentThread.CurrentCulture = prevInternationalization;
+				CultureInfo.CurrentCulture = prevInternationalization;
 
 				// Generate correct string representation for each type of object
 				// that could be set.

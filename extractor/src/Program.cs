@@ -1,4 +1,5 @@
-﻿using protoextractor.analyzer.c_sharp;
+﻿using CommandLine;
+using protoextractor.analyzer.c_sharp;
 using protoextractor.compiler;
 using protoextractor.compiler.proto_scheme;
 using protoextractor.processing;
@@ -20,25 +21,10 @@ namespace protoextractor
 			Log.Info("Launched proto-extractor");
 
 			// Parse commands
-			var opts = new ExtendedOptions();
-
-			if (args == null || args.Length == 0)
-			{
-				Console.WriteLine(opts.GetUsage(null));
-
-				Log.Exception("Parameters were incorrect");
-				Environment.Exit(-2);
-			}
-
-			CommandLine.Parser.Default.ParseArgumentsStrict(args, opts, () =>
-			{
-				Console.WriteLine("Failed to parse arguments!");
-				Console.WriteLine();
-				Console.WriteLine(opts.GetUsage(null));
-
-				Log.Exception("Parameters were incorrect");
-				Environment.Exit(-2);
-			});
+			Options opts = null;
+			Parser.Default.ParseArguments<Options>(args)
+				.WithParsed(_opts => opts = _opts);
+			if (opts == null) return -1;
 
 			// Update logger with command line parameters.
 			Log.SetParams(opts);
@@ -58,7 +44,7 @@ namespace protoextractor
 				analyzer.SetLibraryPath(opts.LibraryPath);
 			}
 			// Set input files.
-			analyzer.InputFiles = opts.InputFileName;
+			analyzer.InputFiles = opts.InputFileNames;
 
 			// Analyze
 			analyzer.Parse();

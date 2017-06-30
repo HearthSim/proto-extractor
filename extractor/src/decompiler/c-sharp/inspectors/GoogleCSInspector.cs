@@ -10,7 +10,7 @@ namespace protoextractor.decompiler.c_sharp.inspectors
 	{
 		public static bool MatchDecompilableClasses(TypeDefinition t)
 		{
-			return (t.IsClass && t.Interfaces.Any(i => i.Name.Equals("IMessage")));
+			return (t.IsClass && t.Interfaces.Any(i => i.InterfaceType.Name.Equals("IMessage")));
 		}
 
 		public static bool MatchStaticConstructor(MethodDefinition m)
