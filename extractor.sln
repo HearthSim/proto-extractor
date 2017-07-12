@@ -1,9 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
-VisualStudioVersion = 15.0.26430.14
+VisualStudioVersion = 15.0.26430.15
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "extractor", "extractor\extractor.csproj", "{8FE1465B-A81A-496A-B0D0-80CB18FE436B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "extractor", "extractor\extractor.csproj", "{8FE1465B-A81A-496A-B0D0-80CB18FE436B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "mono-extractor", "mono-extractor\mono-extractor.csproj", "{8701AFBA-86EB-4D53-BE14-F8BCCB12E098}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +17,10 @@ Global
 		{8FE1465B-A81A-496A-B0D0-80CB18FE436B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8FE1465B-A81A-496A-B0D0-80CB18FE436B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8FE1465B-A81A-496A-B0D0-80CB18FE436B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8701AFBA-86EB-4D53-BE14-F8BCCB12E098}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8701AFBA-86EB-4D53-BE14-F8BCCB12E098}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8701AFBA-86EB-4D53-BE14-F8BCCB12E098}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8701AFBA-86EB-4D53-BE14-F8BCCB12E098}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

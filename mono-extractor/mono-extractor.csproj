@@ -1,0 +1,138 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{8701AFBA-86EB-4D53-BE14-F8BCCB12E098}</ProjectGuid>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>mono_extractor</RootNamespace>
+    <AssemblyName>mono-extractor</AssemblyName>
+    <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <TargetFrameworkProfile>
+    </TargetFrameworkProfile>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>TRACE;DEBUG;NET40</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="CommandLine">
+      <HintPath>lib\CommandLine.dll</HintPath>
+    </Reference>
+    <Reference Include="Mono.Cecil">
+      <HintPath>lib\Mono.Cecil.dll</HintPath>
+    </Reference>
+    <Reference Include="Mono.Cecil.Rocks">
+      <HintPath>lib\Mono.Cecil.Rocks.dll</HintPath>
+    </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\extractor\src\analyzer\c-sharp\AssemblyResolver.cs">
+      <Link>src\analyzer\c-sharp\AssemblyResolver.cs</Link>
+    </Compile>
+    <Compile Include="..\extractor\src\analyzer\c-sharp\CSAnalyzer.cs">
+      <Link>src\analyzer\c-sharp\CSAnalyzer.cs</Link>
+    </Compile>
+    <Compile Include="..\extractor\src\analyzer\c-sharp\TypeDefinitionComparer.cs">
+      <Link>src\analyzer\c-sharp\TypeDefinitionComparer.cs</Link>
+    </Compile>
+    <Compile Include="..\extractor\src\analyzer\DefaultAnalyzer.cs">
+      <Link>src\analyzer\DefaultAnalyzer.cs</Link>
+    </Compile>
+    <Compile Include="..\extractor\src\compiler\DefaultProtoCompiler.cs">
+      <Link>src\compiler\DefaultProtoCompiler.cs</Link>
+    </Compile>
+    <Compile Include="..\extractor\src\compiler\proto-scheme\Proto2Compiler.cs">
+      <Link>src\compiler\proto-scheme\Proto2Compiler.cs</Link>
+    </Compile>
+    <Compile Include="..\extractor\src\compiler\proto-scheme\Proto3Compiler.cs">
+      <Link>src\compiler\proto-scheme\Proto3Compiler.cs</Link>
+    </Compile>
+    <Compile Include="..\extractor\src\compiler\proto-scheme\ProtoHelper.cs">
+      <Link>src\compiler\proto-scheme\ProtoHelper.cs</Link>
+    </Compile>
+    <Compile Include="..\extractor\src\decompiler\c-sharp\ILDecompiler.cs">
+      <Link>src\decompiler\c-sharp\ILDecompiler.cs</Link>
+    </Compile>
+    <Compile Include="..\extractor\src\decompiler\c-sharp\inspectors\GoogleCSInspector.cs">
+      <Link>src\decompiler\c-sharp\inspectors\GoogleCSInspector.cs</Link>
+    </Compile>
+    <Compile Include="..\extractor\src\decompiler\c-sharp\inspectors\SilentOrbitInspector.cs">
+      <Link>src\decompiler\c-sharp\inspectors\SilentOrbitInspector.cs</Link>
+    </Compile>
+    <Compile Include="..\extractor\src\decompiler\c-sharp\InspectorTools.cs">
+      <Link>src\decompiler\c-sharp\InspectorTools.cs</Link>
+    </Compile>
+    <Compile Include="..\extractor\src\decompiler\c-sharp\MethodWalker.cs">
+      <Link>src\decompiler\c-sharp\MethodWalker.cs</Link>
+    </Compile>
+    <Compile Include="..\extractor\src\decompiler\DefaultDecompiler.cs">
+      <Link>src\decompiler\DefaultDecompiler.cs</Link>
+    </Compile>
+    <Compile Include="..\extractor\src\IRTypes.cs">
+      <Link>src\IRTypes.cs</Link>
+    </Compile>
+    <Compile Include="..\extractor\src\processing\AutoPackager.cs">
+      <Link>src\processing\AutoPackager.cs</Link>
+    </Compile>
+    <Compile Include="..\extractor\src\processing\DefaultProcessor.cs">
+      <Link>src\processing\DefaultProcessor.cs</Link>
+    </Compile>
+    <Compile Include="..\extractor\src\processing\DependancyAnalyzer.cs">
+      <Link>src\processing\DependancyAnalyzer.cs</Link>
+    </Compile>
+    <Compile Include="..\extractor\src\processing\DependancyUtil.cs">
+      <Link>src\processing\DependancyUtil.cs</Link>
+    </Compile>
+    <Compile Include="..\extractor\src\processing\LowerCaseNamespaces.cs">
+      <Link>src\processing\LowerCaseNamespaces.cs</Link>
+    </Compile>
+    <Compile Include="..\extractor\src\processing\ManualPackager.cs">
+      <Link>src\processing\ManualPackager.cs</Link>
+    </Compile>
+    <Compile Include="..\extractor\src\processing\NameCollisionAnalyzer.cs">
+      <Link>src\processing\NameCollisionAnalyzer.cs</Link>
+    </Compile>
+    <Compile Include="..\extractor\src\Program.cs">
+      <Link>src\Program.cs</Link>
+    </Compile>
+    <Compile Include="..\extractor\src\util\IniParser.cs">
+      <Link>src\util\IniParser.cs</Link>
+    </Compile>
+    <Compile Include="..\extractor\src\util\Logger.cs">
+      <Link>src\util\Logger.cs</Link>
+    </Compile>
+    <Compile Include="..\extractor\src\util\Options.cs">
+      <Link>src\util\Options.cs</Link>
+    </Compile>
+    <Compile Include="Properties\AssemblyInfo.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="App.config" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>
