@@ -37,6 +37,19 @@ namespace protoextractor.decompiler.c_sharp.inspectors
 				// Find property.
 				var property = properties.First(x => x.Name.Equals(propName));
 
+#if NET40
+				/* This compiler switch is for the MONO build */
+
+				// Hardcode internationalization values for converting values to strings.
+				var prevInternationalization = Thread.CurrentThread.CurrentCulture;
+				Thread.CurrentThread.CurrentCulture = CultureInfo.CreateSpecificCulture("en-GB");
+				// Get the value that's gonna be set to the property.
+				var val = info.Arguments[1].ToString();
+				// Restore.
+				Thread.CurrentThread.CurrentCulture = prevInternationalization;
+#elif NETCOREAPP1_1
+				/* This compiler switch is intended for the (default) NETStandard target */
+
 				// Hardcode internationalization values for converting values to strings.
 				var prevInternationalization = CultureInfo.CurrentCulture;
 				CultureInfo.CurrentCulture = new CultureInfo("en-GB");
@@ -44,6 +57,7 @@ namespace protoextractor.decompiler.c_sharp.inspectors
 				var val = info.Arguments[1].ToString();
 				// Restore.
 				CultureInfo.CurrentCulture = prevInternationalization;
+#endif
 
 				// Generate correct string representation for each type of object
 				// that could be set.
