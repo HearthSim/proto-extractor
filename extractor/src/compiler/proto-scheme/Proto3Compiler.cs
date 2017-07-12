@@ -1,4 +1,4 @@
-﻿using protoextractor.IR;
+using protoextractor.IR;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -168,8 +168,7 @@ namespace protoextractor.compiler.proto_scheme
 			w.WriteLine();
 
 			var firstComment = "Proto extractor compiled unit - https://github.com/HearthSim/proto-extractor";
-			var fileGeneration = string.Format("File generated at {0}", DateTime.UtcNow);
-			WriteComments(w, firstComment, fileGeneration);
+			WriteComments(w, firstComment);
 
 			w.WriteLine();
 		}
