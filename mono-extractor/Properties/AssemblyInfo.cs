@@ -6,11 +6,11 @@ using System.Runtime.InteropServices;
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
 [assembly: AssemblyTitle("mono-extractor")]
-[assembly: AssemblyDescription("")]
+[assembly: AssemblyDescription("Extract protobuffer files on the MONO runtime")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
 [assembly: AssemblyProduct("mono-extractor")]
-[assembly: AssemblyCopyright("Copyright ©  2017")]
+[assembly: AssemblyCopyright("HearthSim")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
