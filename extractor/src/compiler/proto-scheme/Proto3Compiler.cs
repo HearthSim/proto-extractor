@@ -1,4 +1,4 @@
-using protoextractor.IR;
+﻿using protoextractor.IR;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -53,14 +53,11 @@ namespace protoextractor.compiler.proto_scheme
 		// String used to reference the original name from the source library.
 		private static string _Reference = "{0}ref: {1}";
 
-		private int _incrementCounter;
-
 		// Mapping of all namespace objects to their location on disk.
 		private Dictionary<IRNamespace, string> _NSLocationCache;
 
 		public Proto3Compiler(IRProgram program) : base(program)
 		{
-			_incrementCounter = 0;
 		}
 
 		public override void Compile()
@@ -207,13 +204,13 @@ namespace protoextractor.compiler.proto_scheme
 
 		private void WriteEnum(IREnum e, TextWriter w, string prefix)
 		{
-			var reference = string.Format(_Reference, prefix, e.OriginalName);
+			string reference = String.Format(_Reference, prefix, e.OriginalName);
 			WriteComments(w, reference);
 
 			// Type names are kept in PascalCase!
 			w.WriteLine("{0}enum {1} {{", prefix, e.ShortName);
 
-			if(ProtoHelper.HasEnumAlias(e))
+			if (ProtoHelper.HasEnumAlias(e))
 			{
 				w.WriteLine("{0}option allow_alias = true;", prefix + "\t");
 			}
@@ -223,7 +220,7 @@ namespace protoextractor.compiler.proto_scheme
 			// For enums, the default value is the first defined enum value, which must be 0.
 			// Find or create that property with value 0
 			IREnumProperty zeroProp;
-			var zeroPropEnumeration = propList.Where(prop => prop.Value == 0);
+			IEnumerable<IREnumProperty> zeroPropEnumeration = propList.Where(prop => prop.Value == 0);
 			if (!zeroPropEnumeration.Any())
 			{
 				zeroProp = new IREnumProperty()
@@ -245,7 +242,7 @@ namespace protoextractor.compiler.proto_scheme
 			w.WriteLine("{0}{1} = {2};", prefix + "\t", zeroProp.Name, zeroProp.Value);
 
 			// Write out the other properties of the enum next
-			foreach (var prop in propList.OrderBy(prop => prop.Value))
+			foreach (IREnumProperty prop in propList.OrderBy(prop => prop.Value))
 			{
 				// Enum property names are NOT converted to snake case!
 				w.WriteLine("{0}{1} = {2};", prefix + "\t", prop.Name, prop.Value);
@@ -271,7 +268,7 @@ namespace protoextractor.compiler.proto_scheme
 
 		private void WriteMessage(IRClass c, TextWriter w, string prefix)
 		{
-			var reference = string.Format(_Reference, prefix, c.OriginalName);
+			string reference = String.Format(_Reference, prefix, c.OriginalName);
 			WriteComments(w, reference);
 
 			// Type names are kept in PascalCase!
@@ -280,26 +277,27 @@ namespace protoextractor.compiler.proto_scheme
 			WritePrivateTypesToFile(c, w, prefix + "\t");
 
 			// Write all fields last!
-			foreach (var prop in c.Properties.OrderBy(prop => prop.Options.PropertyOrder))
+			foreach (IRClassProperty prop in c.Properties.OrderBy(prop => prop.Options.PropertyOrder))
 			{
-				var opts = prop.Options;
+				IRClassProperty.ILPropertyOptions opts = prop.Options;
 				// Proto3 syntax has implicit default values!
 
-				var label = ProtoHelper.FieldLabelToString(opts.Label, true);
-				var type = ProtoHelper.TypeTostring(prop.Type, c, prop.ReferencedType);
-				var tag = opts.PropertyOrder.ToString();
+				string label = ProtoHelper.FieldLabelToString(opts.Label, true);
+				string type = ProtoHelper.TypeTostring(prop.Type, c, prop.ReferencedType);
+				string tag = opts.PropertyOrder.ToString();
 
 				// In proto3, the default for a repeated field is PACKED=TRUE.
 				// Only if it's not packed.. we set it to false.
-				var packed = "";
+				string packed = "";
 				if (opts.IsPacked == false && opts.Label == FieldLabel.REPEATED)
 				{
-					// Incorporate SPACE at the beginning of the string!
-					packed = string.Format(" [packed=false]");
+					packed = "[packed=false]";
 				}
 
-				w.WriteLine("{0}{1} {2} {3} = {4}{5};", prefix + "\t", label, type,
-							prop.Name.PascalToSnake(), tag, packed);
+				string propName = prop.Name.PascalToSnake();
+				w.WriteLine("{0}{1}{2}{3} = {4}{5};", prefix + "\t",
+							label.SuffixAlign(), type.SuffixAlign(), propName,
+							tag.SuffixAlign(), packed);
 			}
 
 			// End message.

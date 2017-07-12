@@ -1,4 +1,4 @@
-using protoextractor.IR;
+﻿using protoextractor.IR;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -203,7 +203,7 @@ namespace protoextractor.compiler.proto_scheme
 
 		private void WriteEnum(IREnum e, TextWriter w, string prefix)
 		{
-			var reference = string.Format(_Reference, prefix, e.OriginalName);
+			string reference = String.Format(_Reference, prefix, e.OriginalName);
 			WriteComments(w, reference);
 
 			// Type names are kept in PascalCase!
@@ -215,7 +215,7 @@ namespace protoextractor.compiler.proto_scheme
 			}
 
 			// Write out all properties of the enum.
-			foreach (var prop in e.Properties.OrderBy(prop => prop.Value))
+			foreach (IREnumProperty prop in e.Properties.OrderBy(prop => prop.Value))
 			{
 				// Enum property names are NOT converted to snake case!
 				w.WriteLine("{0}{1} = {2};", prefix + "\t", prop.Name, prop.Value);
@@ -241,7 +241,7 @@ namespace protoextractor.compiler.proto_scheme
 
 		private void WriteMessage(IRClass c, TextWriter w, string prefix)
 		{
-			var reference = string.Format(_Reference, prefix, c.OriginalName);
+			string reference = String.Format(_Reference, prefix, c.OriginalName);
 			WriteComments(w, reference);
 
 			// Type names are kept in PascalCase!
@@ -250,34 +250,33 @@ namespace protoextractor.compiler.proto_scheme
 			WritePrivateTypesToFile(c, w, prefix + "\t");
 
 			// Write all fields last!
-			foreach (var prop in c.Properties.OrderBy(prop => prop.Options.PropertyOrder))
+			foreach (IRClassProperty prop in c.Properties.OrderBy(prop => prop.Options.PropertyOrder))
 			{
-				var opts = prop.Options;
-				var label = ProtoHelper.FieldLabelToString(opts.Label, false);
-				var type = ProtoHelper.TypeTostring(prop.Type, c, prop.ReferencedType);
-				var tag = opts.PropertyOrder.ToString();
+				IRClassProperty.ILPropertyOptions opts = prop.Options;
+				string label = ProtoHelper.FieldLabelToString(opts.Label, false);
+				string type = ProtoHelper.TypeTostring(prop.Type, c, prop.ReferencedType);
+				string tag = opts.PropertyOrder.ToString();
 
-				// TODO
-				var defaultValue = "";
+				string defaultValue = "";
 				if (prop.Options.DefaultValue != null)
 				{
-					var formattedValue = ProtoHelper.DefaultValueToString(prop.Options.DefaultValue,
+					string formattedValue = ProtoHelper.DefaultValueToString(prop.Options.DefaultValue,
 																		  prop.ReferencedType);
-					defaultValue = string.Format(" [default = {0}]", formattedValue);
+					defaultValue = String.Format("[default = {0}]", formattedValue);
 				}
 
 				// Proto2 has repeated fields NOT PACKED by default, if they are
 				// we mark that explicitly.
-				var packed = "";
+				string packed = "";
 				if (opts.IsPacked == true && opts.Label == FieldLabel.REPEATED)
 				{
-					// Incorporate SPACE at the beginning of the string!
-					packed = string.Format(" [packed=true]");
+					packed = "[packed=true]";
 				}
 
-				w.WriteLine("{0}{1} {2} {3} = {4}{5}{6};", prefix + "\t", label, type,
-							prop.Name.PascalToSnake(), tag,
-							defaultValue, packed);
+				string propName = prop.Name.PascalToSnake();
+				w.WriteLine("{0}{1}{2}{3} = {4}{5}{6};", prefix + "\t",
+					label.SuffixAlign(), type.SuffixAlign(), propName,
+					tag.SuffixAlign(), defaultValue.SuffixAlign(), packed);
 			}
 
 			// End message.

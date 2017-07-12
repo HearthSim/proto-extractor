@@ -239,9 +239,9 @@ namespace protoextractor.compiler.proto_scheme
 			if (reference != null && reference is IREnum)
 			{
 				// Look for the enum property with the same value.
-				IREnum irEnum = reference as IREnum;
+				var irEnum = reference as IREnum;
 				// Care different representations!
-				var propertyMatch = irEnum.Properties.Where(prop => prop.Value.ToString().Equals(
+				IEnumerable<IREnumProperty> propertyMatch = irEnum.Properties.Where(prop => prop.Value.ToString().Equals(
 																defaultValue));
 				if (propertyMatch.Any())
 				{
@@ -250,6 +250,14 @@ namespace protoextractor.compiler.proto_scheme
 			}
 			// Default case; return the parameter back.
 			return defaultValue;
+		}
+
+		// Utility function to prevent misalignment of keywords across surrounding lines when 
+		// no string value is used.
+		public static string SuffixAlign(this string keyword)
+		{
+			if (keyword.Length == 0) return "";
+			return keyword + " ";
 		}
 	}
 }
