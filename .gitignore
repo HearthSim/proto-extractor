@@ -12,3 +12,4 @@ src/ProgramTest.cs
 proto-extractor.csproj.user
 extractor/Properties/
 extractor/src/ProgramTest.cs
+mono-extractor/build/
