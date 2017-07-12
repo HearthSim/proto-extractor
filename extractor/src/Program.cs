@@ -97,10 +97,14 @@ namespace protoextractor
 			}
 
 			// Setup compiler
-			DefaultProtoCompiler compiler = new Proto2Compiler(program);
+			DefaultProtoCompiler compiler = null;
 			if (opts.Proto3Syntax == true)
 			{
 				compiler = new Proto3Compiler(program);
+			}
+			else
+			{
+				compiler = new Proto2Compiler(program);
 			}
 
 			if (!Directory.Exists(opts.OutDirectory))
