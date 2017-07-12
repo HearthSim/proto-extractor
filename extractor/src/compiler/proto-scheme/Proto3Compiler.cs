@@ -220,7 +220,8 @@ namespace protoextractor.compiler.proto_scheme
 
 			// Make a copy of all properties.
 			var propList = e.Properties.ToList();
-			// Find or create the property with value 0, that one must come first!
+			// For enums, the default value is the first defined enum value, which must be 0.
+			// Find or create that property with value 0
 			IREnumProperty zeroProp;
 			var zeroPropEnumeration = propList.Where(prop => prop.Value == 0);
 			if (!zeroPropEnumeration.Any())
@@ -228,8 +229,8 @@ namespace protoextractor.compiler.proto_scheme
 				zeroProp = new IREnumProperty()
 				{
 					// Enum values are all shared within the same namespace, so they must be
-					// globally unique!
-					Name = "AUTO_INVALID_" + _incrementCounter++,
+					// unique within that namespace!
+					Name = e.ShortName.ToUpper() + "_AUTO_INVALID",
 					Value = 0,
 				};
 			}
