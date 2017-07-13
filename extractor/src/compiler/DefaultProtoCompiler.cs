@@ -81,11 +81,11 @@ namespace protoextractor.compiler
 		// Write one or more lines of comments to the given file.
 		// Comments can occur almost everywhere and are allowed to be suffix a statement.
 		// Each comment is affixed with // (forward slashes) and suffixed with a newline.
-		protected void WriteComments(TextWriter w, params string[] commentList)
+		protected void WriteComments(TextWriter w, string prefix = "", params string[] commentList)
 		{
-			foreach (var comment in commentList)
+			foreach (string comment in commentList)
 			{
-				w.WriteLine("// " + comment);
+				w.WriteLine(prefix + "// " + comment);
 			}
 		}
 

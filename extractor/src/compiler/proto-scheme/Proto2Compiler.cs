@@ -50,7 +50,7 @@ namespace protoextractor.compiler.proto_scheme
 		private static string _Spacer = "//------------------------------";
 
 		// String used to reference the original name from the source library.
-		private static string _Reference = "{0}ref: {1}";
+		private static string _Reference = "ref: {0}";
 
 		// Mapping of all namespace objects to their location on disk.
 		private Dictionary<IRNamespace, string> _NSLocationCache;
@@ -164,7 +164,7 @@ namespace protoextractor.compiler.proto_scheme
 			w.WriteLine();
 
 			var firstComment = "Proto extractor compiled unit - https://github.com/HearthSim/proto-extractor";
-			WriteComments(w, firstComment);
+			WriteComments(w, "", firstComment);
 
 			w.WriteLine();
 		}
@@ -203,8 +203,8 @@ namespace protoextractor.compiler.proto_scheme
 
 		private void WriteEnum(IREnum e, TextWriter w, string prefix)
 		{
-			string reference = String.Format(_Reference, prefix, e.OriginalName);
-			WriteComments(w, reference);
+			string reference = String.Format(_Reference, e.OriginalName);
+			WriteComments(w, prefix, reference);
 
 			// Type names are kept in PascalCase!
 			w.WriteLine("{0}enum {1} {{", prefix, e.ShortName);
@@ -241,8 +241,8 @@ namespace protoextractor.compiler.proto_scheme
 
 		private void WriteMessage(IRClass c, TextWriter w, string prefix)
 		{
-			string reference = String.Format(_Reference, prefix, c.OriginalName);
-			WriteComments(w, reference);
+			string reference = String.Format(_Reference, c.OriginalName);
+			WriteComments(w, prefix, reference);
 
 			// Type names are kept in PascalCase!
 			w.WriteLine("{0}message {1} {{", prefix, c.ShortName);
@@ -274,9 +274,19 @@ namespace protoextractor.compiler.proto_scheme
 				}
 
 				string propName = prop.Name.PascalToSnake();
+				if (packed.Length > 0 || defaultValue.Length > 0)
+				{
+					tag = tag.SuffixAlign();
+				}
+
+				if (packed.Length > 0)
+				{
+					defaultValue = defaultValue.SuffixAlign();
+				}
+
 				w.WriteLine("{0}{1}{2}{3} = {4}{5}{6};", prefix + "\t",
 					label.SuffixAlign(), type.SuffixAlign(), propName,
-					tag.SuffixAlign(), defaultValue.SuffixAlign(), packed);
+					tag, defaultValue, packed);
 			}
 
 			// End message.
