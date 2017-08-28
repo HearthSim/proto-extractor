@@ -4,7 +4,7 @@ A C# program to extract [Protocol Buffer definitions](https://developers.google.
 compiled with [Google Protos](https://github.com/google/protobuf)
 or [SilentOrbit](https://silentorbit.com/protobuf/).
 
-> The file `protobin_to_proto.py` is discussed [below](#Binary-proto-extraction).
+> The file `protobin_to_proto.py` is discussed [below](#binary-proto-extraction).
 
 # Compilation
 
@@ -26,7 +26,8 @@ When using the dotnet CLI to build the project, make sure to **restore dependant
 
 Update your Visual Studio **2017** installation to include the `.Net Core cross-platform development`, which can be found under section `Other toolsets`.
 
-Using Visual Studio 2017 is recommended it correctly handles dependancies and building the project. There is a community version which is free to install and use.
+Using Visual Studio 2017 is recommended because it handles dependancies and builds the project correctly for YOU. 
+There is a community version which is [free to install and use](https://www.visualstudio.com/).
 
 
 ### Mono-Extractor
@@ -60,7 +61,7 @@ Extended usage example:
 
 ```bash
 proto-extractor --libPath "%HS_LOCATION%/Hearthstone_Data/Managed" 
---outPath "./proto-out" --proto3 --automatic-packaging --manual-package-file "%REPO%/hscode-proto-packaging.ini"
+--outPath "./proto-out" --proto2 --automatic-packaging --manual-package-file "%REPO%/hscode-proto-packaging.ini"
 "%HS_LOCATION%/Hearthstone_Data/Managed/Assembly-CSharp.dll" 
 "%HS_LOCATION%/Hearthstone_Data/Managed/Assembly-CSharp-firstpass.dll" 
 ```
