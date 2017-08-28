@@ -4,6 +4,37 @@ A C# program to extract [Protocol Buffer definitions](https://developers.google.
 compiled with [Google Protos](https://github.com/google/protobuf)
 or [SilentOrbit](https://silentorbit.com/protobuf/).
 
+> The file `protobin_to_proto.py` is discussed [below](#Binary-proto-extraction).
+
+# Compilation
+
+There are 2 versions of the extractor project. Both projects have the same purpose, but target a different framework each.
+
+- Extractor; Targets .Net Core. See [1](#extractor).
+- Mono-Extractor; Targets Mono. See [2](#mono-extractor).
+
+### Extractor
+
+> Compile and run the `Extractor` project!
+
+You can get the .Net Core compilation tools through 2 channels; 
+
+Download the (CLI) binaries by downloading directly from [the site](https://www.microsoft.com/net/core).
+When using the dotnet CLI to build the project, make sure to **restore dependant packages first!**
+
+*OR*
+
+Update your Visual Studio **2017** installation to include the `.Net Core cross-platform development`, which can be found under section `Other toolsets`.
+
+Using Visual Studio 2017 is recommended it correctly handles dependancies and building the project. There is a community version which is free to install and use.
+
+
+### Mono-Extractor
+
+> Compile and run the `Mono-Extractor` project!
+
+You can download the Mono tools from [their site](http://www.mono-project.com/download/). Their `msbuild` executable should automatically restore dependant packages.
+
 # Usage
 
 Compile the program.
@@ -79,13 +110,16 @@ The execution order of processing algorithms is always as follows:
 2. Automatic packaging of namespaces;
 3. Resolving name collisions.
 
-# Proto file extraction from binaries
+# Binary proto extraction
+
+> Use the `protobin_to_proto.py` file!
 
 At the root of the repository you'll find a python3 script that extracts protobuffer files from arbitrary binary files. 
 
->**This only works on proto files which have been compiled with the Google Protobuffer compiler tool (protoc)!** Use the proto-extractor project for hearthstone related proto files.
+>**This only works on proto files which have been compiled with the Google Protobuffer compiler tool (protoc)!** 
+Use the proto-extractor project (see above) for hearthstone related proto files.
 
-## Usage
+## Setup
 
 The only requirement for this script is the [Google Protobuffer package](https://pypi.python.org/pypi/protobuf) which you can install through pip. A quick setup guide is given below.
 
@@ -93,8 +127,12 @@ The only requirement for this script is the [Google Protobuffer package](https:/
 2. Create a virtual environment inside the CWD; `py -3 -m virtualenv ./.env`
 3. Activate the environment; `./env/Scripts/activate`
 4. Install protobuf package; `pip install protobuf`
-5. Run the proto extraction script; `python protobin_to_proto.py -o [out-dir] [inputfile [inputfiles ..]]`
-6. Extracted proto files can be found inside [out-dir], the script will output any found, valid filename.
+
+# Usage
+
+1. Activate the venv which was setup in the previous section.
+2. Run the proto extraction script; `python protobin_to_proto.py -o [out-dir] [inputfile [inputfiles ..]]`
+3. Extracted proto files can be found inside [out-dir], the script will output any found, valid filename.
 
 # License
 
