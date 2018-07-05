@@ -1,4 +1,4 @@
-﻿using Mono.Cecil;
+using Mono.Cecil;
 using protoextractor.compiler.proto_scheme;
 using protoextractor.decompiler.c_sharp.inspectors;
 using protoextractor.IR;
@@ -38,7 +38,9 @@ namespace protoextractor.decompiler.c_sharp
 				// Validate SilentOrbit.
 				SilentOrbitInspector.MatchDecompilableClasses(t) ||
 				// Validate GoogleProtobuffer.
-				GoogleCSInspector.MatchDecompilableClasses(t)
+				GoogleCSInspector.MatchDecompilableClasses(t) ||
+				// Validates GoogleProtobuffer V1.
+				GoogleV1Inspector.MatchDecompilableClasses(t)
 				;
 		}
 
@@ -80,6 +82,11 @@ namespace protoextractor.decompiler.c_sharp
 				if (SilentOrbitInspector.MatchDecompilableClasses(_subject))
 				{
 					DecompileClass_SilentOrbit(irClass, out references);
+				}
+				// Test for Google Protobuffer V1 decompilation.
+				else if (GoogleV1Inspector.MatchDecompilableClasses(_subject))
+				{
+					DecompileClass_GoogleV1(irClass, out references);
 				}
 				// Test for Google Protobuffer decompilation.
 				else if (GoogleCSInspector.MatchDecompilableClasses(_subject))
@@ -134,6 +141,46 @@ namespace protoextractor.decompiler.c_sharp
 			};
 			// Walk the deserialize method for additional information.
 			MethodWalker.WalkMethod(deserialize, silentOrbitDeserializeCallHandler, null);
+		}
+
+		private void DecompileClass_GoogleV1(IRClass target, out List<TypeDefinition> references)
+		{
+			// Setup containers
+			var fieldNames = new List<string>();
+			var targetProperties = new List<IRClassProperty>();
+			var allFields = GoogleV1Inspector.ExtractClassFields(_subject);
+			// .. and store the resulting properties into the target class.
+			target.Properties = targetProperties;
+
+			// Extract direct fields from the static data of the class.
+			var staticConstructor = _subject.Methods.First(GoogleV1Inspector.MatchStaticConstructor);
+			Action<CallInfo, List<byte>> cctorOnCall = (CallInfo c, List<byte> w) =>
+			{
+				GoogleV1Inspector.StaticCctorOnCall(c);
+			};
+			Action<StoreInfo, List<byte>> cctorOnStore = (StoreInfo s, List<byte> w) =>
+			{
+				GoogleV1Inspector.StaticCctorOnStore(s, fieldNames);
+			};
+			// Walk static constructor method.
+			MethodWalker.WalkMethod(staticConstructor, cctorOnCall, cctorOnStore);
+
+			// Extract direct fields from the serialize method of the class.
+			var serializer = _subject.Methods.First(GoogleV1Inspector.MatchSerializeMethod);
+			var localReferences = new List<TypeDefinition>();
+			Action<CallInfo, List<byte>> serializeOnCall = (CallInfo c, List<byte> w) =>
+			{
+				GoogleV1Inspector.SerializeOnCall(c, fieldNames, allFields, targetProperties, localReferences);
+			};
+			Action<StoreInfo, List<byte>> serializeOnStore = (StoreInfo s, List<byte> w) =>
+			{
+				GoogleV1Inspector.SerializeOnStore(s);
+			};
+			// Walk static constructor method.
+			MethodWalker.WalkMethod(serializer, serializeOnCall, serializeOnStore);
+
+
+			references = localReferences;
 		}
 
 		private void DecompileClass_Google(IRClass target, out List<TypeDefinition> references)

@@ -1,4 +1,4 @@
-﻿using Mono.Cecil;
+using Mono.Cecil;
 using Mono.Cecil.Cil;
 using System;
 using System.Collections.Generic;
@@ -88,31 +88,36 @@ namespace protoextractor.decompiler.c_sharp
 			}
 			processedOps.Add(ins.Offset);
 
-			List<object> stack = operation.Stack;
 			List<Condition> conditions = operation.Conditions;
 			List<byte> writtenBytes = operation.BytesWritten;
 
 			switch (ins.OpCode.Code)
 			{
+				case Code.Dup:
+					// Most of the time this element is a reference. References are clone-able without side-effects.
+					object element = operation.StackPop();
+					operation.StackPush(element);
+					operation.StackPush(element);
+					break;
 				case Code.Ldnull:
-					stack.Add("null");
+					operation.StackPush("null");
 					break;
 				case Code.Ldc_I4:
 					// The operand is a normal int.
-					stack.Add(ins.Operand);
+					operation.StackPush(ins.Operand);
 					break;
 				case Code.Ldc_I4_S:
 					// Combine 0 and the sbyte to force a conversion.
 					// The operand is a signed byte.
 					int intVal = 0 | (sbyte)ins.Operand;
-					stack.Add(intVal);
+					operation.StackPush(intVal);
 					break;
 				case Code.Ldc_R4:
 					float flVal = (float)ins.Operand;
-					stack.Add(flVal);
+					operation.StackPush(flVal);
 					break;
 				case Code.Ldstr:
-					stack.Add(ins.Operand);
+					operation.StackPush(ins.Operand);
 					break;
 				case Code.Ldc_I4_0:
 				case Code.Ldc_I4_1:
@@ -127,19 +132,19 @@ namespace protoextractor.decompiler.c_sharp
 					// Ldc_i4_0 starts at OP2 = 0x16, so we subtract 0x16 from OP2 for each
 					// matching opcode to find the index of the argument.
 					int value = (int)(ins.OpCode.Op2 - 0x16);
-					stack.Add(value);
+					operation.StackPush(value);
 					break;
 				case Code.Ldc_I4_M1:
 					// Pushes integer value -1 onto the stack.
-					stack.Add(-1);
+					operation.StackPush(-1);
 					break;
 				case Code.Ldloca:
-					stack.Add("&" + (ins.Operand as VariableReference).ToString());
+					operation.StackPush(String.Format("&{0}", (ins.Operand as VariableReference).ToString()));
 					break;
 				case Code.Ldloc:
 				case Code.Ldloc_S:
 				case Code.Ldloca_S:
-					stack.Add((ins.Operand as VariableReference).ToString());
+					operation.StackPush((ins.Operand as VariableReference).ToString());
 					break;
 				case Code.Ldloc_0:
 				case Code.Ldloc_1:
@@ -147,26 +152,26 @@ namespace protoextractor.decompiler.c_sharp
 				case Code.Ldloc_3:
 					// LdLoc_0 starts at 0x06 for OP2.
 					int localIdx = (int)(ins.OpCode.Op2 - 0x06);
-					stack.Add(string.Format("ldArg{0}", localIdx));
+					operation.StackPush(String.Format("ldArg{0}", localIdx));
 					break;
 				case Code.Ldfld:
-					var field = String.Format("{0}.{1}",
-											  stack.Pop(), (ins.Operand as FieldReference).Name);
-					stack.Add(field);
+					var loadedObject = operation.StackPop();
+					var field = String.Format("{0}.{1}", loadedObject, (ins.Operand as FieldReference).Name);
+					operation.StackPush(field);
 					break;
 				case Code.Ldsfld:
-					stack.Add((ins.Operand as FieldReference).FullName);
+					operation.StackPush((ins.Operand as FieldReference).FullName);
 					break;
 				case Code.Ldarg:
 					{
 						var idx = (ins.Operand as ParameterReference).Index;
 						if (idx == -1)
 						{
-							stack.Add("this");
+							operation.StackPush("this");
 						}
 						else
 						{
-							stack.Add(String.Format("arg{0}", idx));
+							operation.StackPush(String.Format("arg{0}", idx));
 						}
 					}
 					break;
@@ -179,29 +184,34 @@ namespace protoextractor.decompiler.c_sharp
 						// OP2 is the second byte representing our opcode.
 						// Ldarg_0 starts at OP2 = 2, so we subtract 2 from OP2 for each
 						// matching opcode to find the index of the argument.
-						stack.Add(String.Format("arg{0}", (ins.OpCode.Op2 - 2).ToString()));
+						operation.StackPush(String.Format("arg{0}", (ins.OpCode.Op2 - 2).ToString()));
 					}
 					break;
 				case Code.Ldelem_Ref:
 					{
-						var idx = stack.Pop();
-						var arr = stack.Pop();
-						stack.Add(String.Format("{0}[{1}]", arr, idx));
+						var idx = operation.StackPop();
+						var arr = operation.StackPop();
+						operation.StackPush(String.Format("{0}[{1}]", arr, idx));
 					}
 					break;
 				case Code.Ldftn:
-					stack.Add(String.Format("&({0})", ins.Operand));
+					operation.StackPush(String.Format("&({0})", ins.Operand));
+					break;
+				case Code.Ldtoken:
+					// Not sure what to do with the operand, it could be anything.. A FieldDefinition or TypeDefinition..
+					var valueType = ins.Operand;
+					operation.StackPush(valueType);
 					break;
 				case Code.Newobj:
 					{
 						var mr = ins.Operand as MethodReference;
 						var numParam = mr.Parameters.Count;
-						var stackIdx = stack.Count - numParam;
-						var args = stack.GetRange(stackIdx, numParam);
-						stack.RemoveRange(stackIdx, numParam);
+						var stackIdx = operation.Stack.Count - numParam;
+						var args = operation.Stack.GetRange(stackIdx, numParam);
+						operation.Stack.RemoveRange(stackIdx, numParam);
 						var callString = String.Format("new {0}({1})",
 													   mr.DeclaringType.Name, String.Join(", ", args));
-						stack.Add(callString);
+						operation.StackPush(callString);
 						args.Insert(0, "this");
 
 						var info = new CallInfo
@@ -216,12 +226,24 @@ namespace protoextractor.decompiler.c_sharp
 					}
 					break;
 				case Code.Newarr:
-					stack.Add(String.Format("new {0}[{1}]",
-											(ins.Operand as TypeDefinition).FullName, stack.Pop()));
+					TypeReference operand = ins.Operand as TypeDefinition ?? ins.Operand as TypeReference;
+					var arrayAmount = Int32.Parse(operation.StackPop().ToString());
+					var arrayName = String.Format("new {0}[{1}]", operand.FullName, arrayAmount);
+					var openArray = new OpenArray()
+					{
+						StackName = arrayName,
+						Contents = new List<object>(arrayAmount),
+					};
+					// Prefill the array with nulls
+					for (int i = 0; i < arrayAmount; ++i)
+					{
+						openArray.Contents.Push(null);
+					}
+					operation.StackPush(openArray);
 					break;
 				case Code.Brfalse:
 					{
-						var lhs = stack.Pop().ToString();
+						var lhs = operation.StackPop().ToString();
 						var src = ins.Offset;
 						var tgt = (ins.Operand as Instruction).Offset;
 						var cond = new Condition(src, lhs, Comparison.IsFalse);
@@ -231,7 +253,7 @@ namespace protoextractor.decompiler.c_sharp
 					break;
 				case Code.Brtrue:
 					{
-						var lhs = stack.Pop().ToString();
+						var lhs = operation.StackPop().ToString();
 						var src = ins.Offset;
 						var tgt = (ins.Operand as Instruction).Offset;
 						var cond = new Condition(src, lhs, Comparison.IsTrue);
@@ -246,8 +268,8 @@ namespace protoextractor.decompiler.c_sharp
 				case Code.Blt:
 				case Code.Bgt:
 					{
-						var rhs = stack.Pop().ToString();
-						var lhs = stack.Pop().ToString();
+						var rhs = operation.StackPop().ToString();
+						var lhs = operation.StackPop().ToString();
 						var src = ins.Offset;
 						var tgt = (ins.Operand as Instruction).Offset;
 						Condition cond = null, ncond = null;
@@ -292,28 +314,30 @@ namespace protoextractor.decompiler.c_sharp
 					return;
 				case Code.Stsfld:
 					{
-						var arg = stack.Pop().ToString();
+						var arg = operation.StackPop();
 						// Don't pop for the object pointer, because this is a static
 						// set.
 						var info = new StoreInfo
 						{
 							Conditions = new List<Condition>(conditions),
 							Field = ins.Operand as FieldReference,
-							Argument = arg,
+							Argument = arg.ToString(),
+							RawObject = arg,
 						};
 						_onStore(info, null);
 					}
 					break;
 				case Code.Stfld:
 					{
-						var arg = stack.Pop().ToString();
+						var arg = operation.StackPop();
 						/*var obj = */
-						stack.Pop();
+						operation.StackPop();
 						var info = new StoreInfo
 						{
 							Conditions = new List<Condition>(conditions),
 							Field = ins.Operand as FieldReference,
-							Argument = arg,
+							Argument = arg.ToString(),
+							RawObject = arg,
 						};
 						_onStore(info, null);
 					}
@@ -321,18 +345,39 @@ namespace protoextractor.decompiler.c_sharp
 				case Code.Stelem_Ref:
 					{
 						/*var val = */
-						stack.Pop();
+						var arr_value = operation.StackPop();
 						/*var idx = */
-						stack.Pop();
+						var idx = Int32.Parse(operation.StackPop().ToString());
 						/*var arr = */
-						stack.Pop();
+						var arr = operation.StackPop();
+						if (!(arr is OpenArray))
+						{
+							throw new InvalidOperationException("The popped object must be of type OpenArray!");
+						}
+						(arr as OpenArray).Contents[idx] = arr_value;
+					}
+					break;
+				case Code.Stelem_I4:
+					{
+						/*var val = */
+						// This value is guaranteed to be an integer, because of the opcode.
+						var arr_value = Int32.Parse(operation.StackPop().ToString());
+						/*var idx = */
+						var idx = Int32.Parse(operation.StackPop().ToString());
+						/*var arr = */
+						var arr = operation.StackPop();
+						if (!(arr is OpenArray))
+						{
+							throw new InvalidOperationException("The popped object must be of type OpenArray!");
+						}
+						(arr as OpenArray).Contents[idx] = arr_value;
 					}
 					break;
 				case Code.Mul:
 					{
-						var rhs = stack.Pop().ToString();
-						var lhs = stack.Pop().ToString();
-						stack.Add(String.Format("{0} * {1}", lhs, rhs));
+						var rhs = operation.StackPop().ToString();
+						var lhs = operation.StackPop().ToString();
+						operation.StackPush(String.Format("{0} * {1}", lhs, rhs));
 					}
 					break;
 				case Code.Call:
@@ -342,15 +387,15 @@ namespace protoextractor.decompiler.c_sharp
 						var args = new List<object>();
 						for (var i = 0; i < mr.Parameters.Count; i++)
 						{
-							args.Add(stack.Pop());
+							args.Add(operation.StackPop());
 						}
 						if (mr.HasThis)
 						{
-							if (stack.Count < 1)
+							if (operation.Stack.Count < 1)
 							{
 								throw new InvalidOperationException("The stack count should be 1 or higer");
 							}
-							args.Add(stack.Pop());
+							args.Add(operation.StackPop());
 						}
 						args.Reverse();
 						var callString = String.Format("{0}.{1}({2})",
@@ -360,7 +405,7 @@ namespace protoextractor.decompiler.c_sharp
 																   mr.HasThis ? args.Skip(1) : args));
 						if (mr.ReturnType.FullName != "System.Void")
 						{
-							stack.Add(callString);
+							operation.StackPush(callString);
 						}
 
 						var info = new CallInfo
@@ -446,6 +491,43 @@ namespace protoextractor.decompiler.c_sharp
 			get;
 			set;
 		}
+
+		public List<OpenArray> OpenArrays
+		{
+			get;
+			set;
+		}
+
+		public void StackPush(object obj)
+		{
+			Stack.Push(obj);
+		}
+
+		public object StackPop()
+		{
+			var stackObj = Stack.Pop();
+			return stackObj;
+		}
+	}
+
+	public class OpenArray
+	{
+		public string StackName
+		{
+			get;
+			set;
+		}
+
+		public List<object> Contents
+		{
+			get;
+			set;
+		}
+
+		public override string ToString()
+		{
+			return StackName;
+		}
 	}
 
 	public class CallInfo
@@ -490,6 +572,11 @@ namespace protoextractor.decompiler.c_sharp
 			set;
 		}
 		public string Argument
+		{
+			get;
+			set;
+		}
+		public object RawObject
 		{
 			get;
 			set;

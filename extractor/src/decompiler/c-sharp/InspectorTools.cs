@@ -1,4 +1,4 @@
-﻿using Mono.Cecil;
+using Mono.Cecil;
 using protoextractor.IR;
 using System;
 using System.Collections.Generic;
@@ -59,6 +59,13 @@ namespace protoextractor.decompiler.c_sharp
 
 		public static PropertyTypeKind LiteralTypeMapper(string type)
 		{
+			// Cut of the array suffix, because the type doesn't change.
+			var arrayIdx = type.LastIndexOf("Array");
+			if(arrayIdx > -1)
+			{
+				type = type.Substring(0, arrayIdx);
+			}
+
 			PropertyTypeKind fieldType;
 			switch (type)
 			{
@@ -122,6 +129,7 @@ namespace protoextractor.decompiler.c_sharp
 			return fieldType;
 		}
 
+		// This method is wrongly named! A tag != field idx
 		// Little ENDIAN order!
 		public static int GetFieldTag(List<byte> written)
 		{
@@ -148,6 +156,11 @@ namespace protoextractor.decompiler.c_sharp
 			tag >>= 3;
 
 			return tag;
+		}
+
+		public static int TagToFieldIdx(uint tag)
+		{
+			return (int)(tag >>= 3);
 		}
 
 		// Give this function all bytes written to write the header of a field to the wire.
