@@ -116,11 +116,14 @@ class ProtobinDecompiler:
         descriptors = []
 
         # Discover wire-encoded FileDescriptorProto's
-        print("Checking for wire-encoded proto files!")
+        print("Checking for wire-encoded proto files..")
         descriptors.extend(self.discover_encoded_file_descriptor(data))
+        print("")
+
         # Discover GZipped FileDescriptorProto's
-        print("Checking for GZIPPED proto files!")
+        print("Checking for GZIPPED proto files..")
         descriptors.extend(self.discover_gzipped_file_descriptor(data))
+        print("")
 
         for descriptor in descriptors:
             descriptor_name = descriptor.name
@@ -255,9 +258,16 @@ class ProtobinDecompiler:
         return descriptors
 
     def decompile_file_descriptor(self, descriptor):
-        # deserialize package name and dependencies
+        # Write meta information of proto file, this is equivalent to a header
+        if descriptor.HasField("syntax"):
+            self.write("syntax = \"%s\";\n" % descriptor.syntax)
+        else:
+            self.write("syntax = \"proto2\";\n")
+
         if descriptor.HasField("package"):
             self.write("package %s;\n" % descriptor.package)
+
+        self.write("\n// Proto extractor compiled unit - https://github.com/HearthSim/proto-extractor\n\n")
 
         for dep in descriptor.dependency:
             self.write("import \"%s\";\n" % dep)
