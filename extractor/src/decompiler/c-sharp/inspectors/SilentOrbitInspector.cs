@@ -1,4 +1,4 @@
-﻿using Mono.Cecil;
+using Mono.Cecil;
 using protoextractor.IR;
 using System.Collections.Generic;
 using System.Globalization;

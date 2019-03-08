@@ -1,4 +1,4 @@
-﻿# EditorConfig is awesome:http://EditorConfig.org
+# EditorConfig is awesome:http://EditorConfig.org
 
 # top-most EditorConfig file
 root = true
@@ -6,13 +6,17 @@ root = true
 # Global settings
 [*]
 charset = utf-8
-end_of_line  = lf
+end_of_line  = crlf
 insert_final_newline = true
 
-# Global settings for code files
-[*.{cs,vb,md}]
+[*.{config,cs,xml,cs,vb,md}]
+indent_style = space
+indent_size = 4
+trim_trailing_whitespace = true
+
+[*.{proj,props,sln,targets}]
 indent_style = tab
-tab_width = 4
+trim_trailing_whitespace = true
 
 [*.{py}]
 indent_style = space
