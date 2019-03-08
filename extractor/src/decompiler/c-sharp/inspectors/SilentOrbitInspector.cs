@@ -47,7 +47,7 @@ namespace protoextractor.decompiler.c_sharp.inspectors
 				var val = info.Arguments[1].ToString();
 				// Restore.
 				Thread.CurrentThread.CurrentCulture = prevInternationalization;
-#elif NETCOREAPP1_1
+#elif NETCOREAPP2_1
 				/* This compiler switch is intended for the (default) NETStandard target */
 
 				// Hardcode internationalization values for converting values to strings.
