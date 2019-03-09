@@ -8,7 +8,7 @@ or [SilentOrbit](https://silentorbit.com/protobuf/).
 
 # Compilation
 
-There are 2 versions of the extractor project. Both projects have the same purpose, but target a different framework each.
+There are 2 versions of the extractor project. Both projects have the same purpose, but target a different runtime framework each.
 
 - Extractor; Targets .Net Core. See [1](#extractor).
 - Mono-Extractor; Targets Mono. See [2](#mono-extractor).
@@ -20,13 +20,15 @@ There are 2 versions of the extractor project. Both projects have the same purpo
 You can get the .Net Core compilation tools through 2 channels; 
 
 Download the (CLI) binaries by downloading directly from [the site](https://www.microsoft.com/net/core).
-When using the dotnet CLI to build the project, make sure to **restore dependant packages first!**
+When using the dotnet CLI to build the project, make sure to **restore dependant packages first!**.
+
+WARN; The build artifact is a .dll file that cannot be executed by itself. To run the program it's required to start the dotnet runtime first; `dotnet extractor.dll [ARGUMENTS]`.
 
 *OR*
 
-Update your Visual Studio **2017** installation to include the `.Net Core cross-platform development`, which can be found under section `Other toolsets`.
+Update your Visual Studio **2019** installation to include the `.Net Core cross-platform development`, which can be found under section `Other toolsets`.
 
-Using Visual Studio 2017 is recommended because it handles dependancies and builds the project correctly for YOU. 
+Using Visual Studio 2019 is recommended because it handles dependancies and builds the project correctly for YOU. 
 There is a community version which is [free to install and use](https://www.visualstudio.com/).
 
 
@@ -34,22 +36,25 @@ There is a community version which is [free to install and use](https://www.visu
 
 > Compile and run the `Mono-Extractor` project!
 
-You can download the Mono tools from [their site](http://www.mono-project.com/download/). Their `msbuild` executable should automatically restore dependant packages.
+You can download the Mono tools from [their site](http://www.mono-project.com/download/). Their `msbuild` executable should automatically restore dependant packages.  
+The resulting binary is called 'mono-extractor.exe'.
 
 # Usage
 
 Compile the program.
 Give it the library files you want to decompile and if you want proto2 or proto3 syntax.
 
-The program will do the following actions automatically:
+The program can do the following actions automatically:
 
+* move types between namespaces according to manual config;
 * resolve circular dependancies;
 * resolve name collisions;
-* generates proto2 syntax output.
+* package types underneath a common namespace;
+* generates proto2/proto3 syntax output.
 
 Basic usage example: 
 ```bash
-proto-extractor --libPath "%HS_LOCATION%/Hearthstone_Data/Managed" 
+extractor --libPath "%HS_LOCATION%/Hearthstone_Data/Managed" 
 --outPath "./proto-out" 
 "%HS_LOCATION%/Hearthstone_Data/Managed/Assembly-CSharp.dll" 
 "%HS_LOCATION%/Hearthstone_Data/Managed/Assembly-CSharp-firstpass.dll" 
@@ -60,9 +65,7 @@ Extended usage example:
 > This command is used to generate protobuffer files for [HS proto repository](https://github.com/HearthSim/hsproto)
 
 ```bash
-proto-extractor --libPath "%HS_LOCATION%/Hearthstone_Data/Managed" 
---outPath "./proto-out" --proto2 --automatic-packaging --manual-package-file "%REPO%/hscode-proto-packaging.ini"
-"%HS_LOCATION%/Hearthstone_Data/Managed/Assembly-CSharp.dll" 
+extractor --proto3 --debug --resolve-circular-dependancies --automatic-packaging --resolve-name-collisions --outPath "./proto-out" --libPath "%HS_LOCATION%/Hearthstone_Data/Managed" "%HS_LOCATION%/Hearthstone_Data/Managed/Assembly-CSharp.dll" 
 "%HS_LOCATION%/Hearthstone_Data/Managed/Assembly-CSharp-firstpass.dll" 
 ```
 
@@ -74,19 +77,21 @@ proto-extractor --libPath "%HS_LOCATION%/Hearthstone_Data/Managed"
 
 The option `--proto3` will use the proto3 compiler to generate .proto files with protobuffer 3 syntax.
 
+WARN; Proto3 syntax is more readable but less accurate. Use Proto2 syntax for emulation purposes.
+
 > Defaults to False.
 
 ### Resolve circular dependancies
 
 The option `--resolve-circular-dependancies` will run a processor object that detects and solves circular dependancies for you. Both circular dependancies between types and namespaces are detected.
 
-> Defaults to True.
+> Defaults to False.
 
 ### Resolve name collisions
 
 The option `--resolve-name-collisions` will run a processor object that detects and solves all kinds of name collisions for you. See the processor code for more details.
 
-> Defaults to True.
+> Defaults to False.
 
 ### Automatic packaging
 
