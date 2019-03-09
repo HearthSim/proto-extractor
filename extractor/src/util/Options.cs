@@ -42,7 +42,7 @@ namespace protoextractor.util
 		}
 
 		// Set this to false on release
-		[Option("debug", Required = false, Default = true,
+		[Option("debug", Required = false, Default = false,
 				HelpText = "This switch allows debug print statements to work.")]
 		public bool DebugMode
 		{
@@ -58,7 +58,7 @@ namespace protoextractor.util
 			set;
 		}
 
-		[Option("resolve-circular-dependancies", Required = false, Default = true,
+		[Option("resolve-circular-dependancies", Required = false, Default = false,
 				HelpText = "This switch enables automatic resolving of circular dependancies.")]
 		public bool ResolveCircDependancies
 		{
@@ -82,7 +82,7 @@ namespace protoextractor.util
 			set;
 		}
 
-		[Option("resolve-name-collisions", Required = false, Default = true,
+		[Option("resolve-name-collisions", Required = false, Default = false,
 				HelpText = "This switch enables resolving name collisions automatically.")]
 		public bool ResolveCollisions
 		{
