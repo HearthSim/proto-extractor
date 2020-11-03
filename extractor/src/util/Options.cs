@@ -90,6 +90,14 @@ namespace protoextractor.util
 			set;
 		}
 
+		[Option("includeEnums", Required = false,
+				HelpText = "Comma-separated list of enum type names to always include.")]
+		public string IncludeEnums
+		{
+			get;
+			set;
+		}
+
 		[Usage(ApplicationAlias = "extractor")]
 		public static IEnumerable<Example> Examples
 		{

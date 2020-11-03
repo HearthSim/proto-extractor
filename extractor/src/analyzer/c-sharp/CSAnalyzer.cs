@@ -15,6 +15,8 @@ namespace protoextractor.analyzer.c_sharp
 		// Class used for resolving C# dll dependancies.
 		private ReaderParameters _resolverParameters;
 
+		// List of enum types to be extracted regardless of whether they are referenced
+		private IEnumerable<string> _includeEnums = new string[] { };
 		// Cache for all registered classes.
 		private Dictionary<TypeDefinition, IRClass> _classCache;
 		// Cache for all registered enums.
@@ -46,12 +48,22 @@ namespace protoextractor.analyzer.c_sharp
 			};
 		}
 
+		internal void SetIncludeEnums(IEnumerable<string> _includeEnums)
+		{
+			this._includeEnums = _includeEnums;
+		}
+
+		private bool MatchIncludedEnum(TypeDefinition t)
+		{
+			return t.IsEnum && this._includeEnums.Contains(t.Name);
+		}
+
 		private void AnalyzeAssembly(AssemblyDefinition assembly)
 		{
 			// All analyzable types can be found at the main module of the assembly.
 			var module = assembly.MainModule;
 			// Fetch all analyzable types.
-			var types = module.Types.Where(ILDecompiler.MatchDecompilableClasses);
+			var types = module.Types.Where(t => ILDecompiler.MatchDecompilableClasses(t) || this.MatchIncludedEnum(t));
 			// Sort all types in ascending order.
 			// This forces parent types to always be processed before nested types!
 			types.OrderBy(x => x.FullName);
@@ -59,7 +71,13 @@ namespace protoextractor.analyzer.c_sharp
 			foreach (var type in types)
 			{
 				// Decompile the type to IR, see DecompileClass(..).
-				DecompileClass(type);
+				if (type.IsEnum)
+				{
+					DecompileEnum(type);
+				} else
+				{
+					DecompileClass(type);
+				}
 			}
 		}
 

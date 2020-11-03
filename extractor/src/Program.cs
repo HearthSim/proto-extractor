@@ -47,6 +47,12 @@ namespace protoextractor
             // Set input files.
             analyzer.InputFiles = new List<string>(opts.InputFileNames);
 
+            if (opts.IncludeEnums != null)
+            {
+                analyzer.SetIncludeEnums(opts.IncludeEnums.Split(new char[] { ',' }));
+            }
+
+
             // Analyze
             analyzer.Parse();
 
