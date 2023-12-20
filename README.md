@@ -20,7 +20,7 @@ There are 2 versions of the extractor project. Both projects have the same purpo
 You can get the .Net Core compilation tools through 2 channels; 
 
 Download the (CLI) binaries by downloading directly from [the site](https://www.microsoft.com/net/core).
-When using the dotnet CLI to build the project, make sure to **restore dependant packages first!**.
+When using the dotnet CLI to build the project, make sure to **restore dependent packages first!**.
 
 WARN; The build artifact is a .dll file that cannot be executed by itself. To run the program it's required to start the dotnet runtime first; `dotnet extractor.dll [ARGUMENTS]`.
 
@@ -28,7 +28,7 @@ WARN; The build artifact is a .dll file that cannot be executed by itself. To ru
 
 Update your Visual Studio **2019** installation to include the `.Net Core cross-platform development`, which can be found under section `Other toolsets`.
 
-Using Visual Studio 2019 is recommended because it handles dependancies and builds the project correctly for YOU. 
+Using Visual Studio 2019 is recommended because it handles dependencies and builds the project correctly for YOU. 
 There is a community version which is [free to install and use](https://www.visualstudio.com/).
 
 
@@ -36,7 +36,7 @@ There is a community version which is [free to install and use](https://www.visu
 
 > Compile and run the `Mono-Extractor` project!
 
-You can download the Mono tools from [their site](http://www.mono-project.com/download/). Their `msbuild` executable should automatically restore dependant packages.  
+You can download the Mono tools from [their site](http://www.mono-project.com/download/). Their `msbuild` executable should automatically restore dependent packages.  
 The resulting binary is called 'mono-extractor.exe'.
 
 # Usage
@@ -47,7 +47,7 @@ Give it the library files you want to decompile and if you want proto2 or proto3
 The program can do the following actions automatically:
 
 * move types between namespaces according to manual config;
-* resolve circular dependancies;
+* resolve circular dependencies;
 * resolve name collisions;
 * package types underneath a common namespace;
 * generates proto2/proto3 syntax output.
@@ -65,7 +65,7 @@ Extended usage example:
 > This command is used to generate protobuffer files for [HS proto repository](https://github.com/HearthSim/hsproto)
 
 ```bash
-extractor --proto3 --debug --resolve-circular-dependancies --automatic-packaging --resolve-name-collisions --outPath "./proto-out" --libPath "%HS_LOCATION%/Hearthstone_Data/Managed" "%HS_LOCATION%/Hearthstone_Data/Managed/Assembly-CSharp.dll" 
+extractor --proto3 --debug --resolve-circular-dependencies --automatic-packaging --resolve-name-collisions --outPath "./proto-out" --libPath "%HS_LOCATION%/Hearthstone_Data/Managed" "%HS_LOCATION%/Hearthstone_Data/Managed/Assembly-CSharp.dll" 
 "%HS_LOCATION%/Hearthstone_Data/Managed/Assembly-CSharp-firstpass.dll" 
 ```
 
@@ -81,9 +81,9 @@ WARN; Proto3 syntax is more readable but less accurate. Use Proto2 syntax for em
 
 > Defaults to False.
 
-### Resolve circular dependancies
+### Resolve circular dependencies
 
-The option `--resolve-circular-dependancies` will run a processor object that detects and solves circular dependancies for you. Both circular dependancies between types and namespaces are detected.
+The option `--resolve-circular-dependencies` will run a processor object that detects and solves circular dependencies for you. Both circular dependencies between types and namespaces are detected.
 
 > Defaults to False.
 
@@ -103,7 +103,7 @@ The option `--automatic-packaging` will try to group namespaces under the same n
 
 The option `--manual-package-file "PATH-TO-INI-FILE"` can be used manually move content of namespaces or specific types to other/new namespaces. See the file `hscode-proto-packaging.ini` in the root of the repo for examples. 
 
-It's important to keep the order of processing algorithms in mind! We shouldn't try to manually compensate the behaviour of the automatic dependancy resolver. This has to do with trying to keep a consistent layout of outputted protobuffer files regarding the absolute dependancy on the source material.
+It's important to keep the order of processing algorithms in mind! We shouldn't try to manually compensate the behaviour of the automatic dependency resolver. This has to do with trying to keep a consistent layout of outputted protobuffer files regarding the absolute dependency on the source material.
 
 > Defaults to "" (empty string) -> nothing will happen.
 
@@ -112,7 +112,7 @@ It's important to keep the order of processing algorithms in mind! We shouldn't 
 The execution order of processing algorithms is always as follows:
 
 1. Manual packaging of namespaces;
-2. Resolve circular dependancies;
+2. Resolve circular dependencies;
 2. Automatic packaging of namespaces;
 3. Resolving name collisions.
 

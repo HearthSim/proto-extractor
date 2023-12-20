@@ -3,7 +3,7 @@ using System.Linq;
 
 namespace protoextractor.processing
 {
-	abstract class DependancyUtil
+	abstract class DependencyUtil
 	{
 		// Returns the longest substring that matches 2 or more types of the given list.
 		// The substrings are taken from the namespaces of each given type!

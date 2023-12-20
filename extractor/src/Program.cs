@@ -73,10 +73,10 @@ namespace protoextractor
                     program = manualPackager.Process();
                 }
 
-                if (opts.ResolveCircDependancies)
+                if (opts.ResolveCircDependencies)
                 {
-                    //*----- Searches and resolves circular dependancies -----*//
-                    var depAnalyzer = new DependancyAnalyzer(program);
+                    //*----- Searches and resolves circular dependencies -----*//
+                    var depAnalyzer = new DependencyAnalyzer(program);
                     program = depAnalyzer.Process();
                 }
 
