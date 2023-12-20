@@ -105,11 +105,11 @@
     <Compile Include="..\extractor\src\processing\DefaultProcessor.cs">
       <Link>src\processing\DefaultProcessor.cs</Link>
     </Compile>
-    <Compile Include="..\extractor\src\processing\DependancyAnalyzer.cs">
-      <Link>src\processing\DependancyAnalyzer.cs</Link>
+    <Compile Include="..\extractor\src\processing\DependencyAnalyzer.cs">
+      <Link>src\processing\DependencyAnalyzer.cs</Link>
     </Compile>
-    <Compile Include="..\extractor\src\processing\DependancyUtil.cs">
-      <Link>src\processing\DependancyUtil.cs</Link>
+    <Compile Include="..\extractor\src\processing\DependencyUtil.cs">
+      <Link>src\processing\DependencyUtil.cs</Link>
     </Compile>
     <Compile Include="..\extractor\src\processing\LowerCaseNamespaces.cs">
       <Link>src\processing\LowerCaseNamespaces.cs</Link>

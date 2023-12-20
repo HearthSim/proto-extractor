@@ -6,9 +6,9 @@ namespace protoextractor.util
 {
 	class Options
 	{
-		/* Location for resolving assembly dependancies */
+		/* Location for resolving assembly dependencies */
 		[Option("libPath", Required = true,
-				HelpText = "The path for resolving input file dependancies.")]
+				HelpText = "The path for resolving input file dependencies.")]
 		public string LibraryPath
 		{
 			get;
@@ -58,9 +58,9 @@ namespace protoextractor.util
 			set;
 		}
 
-		[Option("resolve-circular-dependancies", Required = false, Default = false,
-				HelpText = "This switch enables automatic resolving of circular dependancies.")]
-		public bool ResolveCircDependancies
+		[Option("resolve-circular-dependencies", Required = false, Default = false,
+				HelpText = "This switch enables automatic resolving of circular dependencies.")]
+		public bool ResolveCircDependencies
 		{
 			get;
 			set;
@@ -110,7 +110,7 @@ namespace protoextractor.util
 					ManualPackagingFile = "$(REPO)/hsproto-packaging.ini",
 					OutDirectory = "$(TARGET)/protos",
 					Proto3Syntax = true,
-					ResolveCircDependancies = true,
+					ResolveCircDependencies = true,
 					ResolveCollisions = true
 				});
 			}

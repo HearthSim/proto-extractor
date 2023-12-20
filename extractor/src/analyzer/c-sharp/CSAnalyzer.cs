@@ -12,7 +12,7 @@ namespace protoextractor.analyzer.c_sharp
 		/*
 		    The CSharp analyzer uses Mono.Cecil for type extraction.
 		*/
-		// Class used for resolving C# dll dependancies.
+		// Class used for resolving C# dll dependencies.
 		private ReaderParameters _resolverParameters;
 
 		// List of enum types to be extracted regardless of whether they are referenced
@@ -36,9 +36,9 @@ namespace protoextractor.analyzer.c_sharp
 
 		private void SetupAssemblyResolver()
 		{
-			// Assemblyresolver locates assembly dependancies for us.
+			// Assemblyresolver locates assembly dependencies for us.
 			var resolver = new DirAssemblyResolver();
-			// The directory of the actual library is added because most dependancies
+			// The directory of the actual library is added because most dependencies
 			// are located within the same folder.
 			resolver.AddSearchDirectory(_path);
 			// Prepare a parameter for the loadAssembly call later, see Parse(..).

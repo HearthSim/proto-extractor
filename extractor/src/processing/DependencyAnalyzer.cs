@@ -6,10 +6,10 @@ using System.Linq;
 
 namespace protoextractor.processing
 {
-    class DependancyAnalyzer : DefaultProcessor
+    class DependencyAnalyzer : DefaultProcessor
     {
         /*
-		    This class attempts to resolve circular dependancies in the given program structure.
+		    This class attempts to resolve circular dependencies in the given program structure.
 		*/
 
         // It might be needed to extract types into a seperate namespace.
@@ -28,13 +28,13 @@ namespace protoextractor.processing
         // Maps types to their parent namespace.
         private Dictionary<IRTypeNode, IRNamespace> _TypeNSMapper;
 
-        // Dependancies between namespaces.
-        private Dictionary<IRNamespace, HashSet<IRNamespace>> _NSDependancies;
+        // Dependencies between namespaces.
+        private Dictionary<IRNamespace, HashSet<IRNamespace>> _NSDependencies;
 
         // Direct relations between types.
-        private Dictionary<IRTypeNode, HashSet<IRTypeNode>> _TypeDependancies;
+        private Dictionary<IRTypeNode, HashSet<IRTypeNode>> _TypeDependencies;
 
-        // Find circular dependancies, but do not solve them.
+        // Find circular dependencies, but do not solve them.
         private bool _DryRun
         {
             get;
@@ -44,18 +44,18 @@ namespace protoextractor.processing
         // Keep track of the amount of times we processed the entire program structure.
         private int Runs;
 
-        public DependancyAnalyzer(IRProgram program) : base(program)
+        public DependencyAnalyzer(IRProgram program) : base(program)
         {
             _DryRun = false;
             Runs = 0;
 
             _TypeNSMapper = new Dictionary<IRTypeNode, IRNamespace>();
-            _NSDependancies = new Dictionary<IRNamespace, HashSet<IRNamespace>>();
-            _TypeDependancies = new Dictionary<IRTypeNode, HashSet<IRTypeNode>>();
+            _NSDependencies = new Dictionary<IRNamespace, HashSet<IRNamespace>>();
+            _TypeDependencies = new Dictionary<IRTypeNode, HashSet<IRTypeNode>>();
         }
 
-        // Tests for circular dependancies, but does not solve them.
-        public DependancyAnalyzer DryRun()
+        // Tests for circular dependencies, but does not solve them.
+        public DependencyAnalyzer DryRun()
         {
             _DryRun = true;
 
@@ -65,25 +65,25 @@ namespace protoextractor.processing
         // Processes the given program (INPLACE) and returns it.
         public override IRProgram Process()
         {
-            Program.Log.OpenBlock("DependancyAnalyzer::Process()");
+            Program.Log.OpenBlock("DependencyAnalyzer::Process()");
 
-            // Loop until no more circular dependancies are known.
+            // Loop until no more circular dependencies are known.
             while (true)
             {
                 Runs++;
                 Console.Write('.');
 
-                // Construct dependancy data.
-                CreateDependancyGraph();
+                // Construct dependency data.
+                CreateDependencyGraph();
 
                 try
                 {
-                    // Find and Resolve TYPE circular dependancies.
+                    // Find and Resolve TYPE circular dependencies.
                     CreateTopologicalTypeTree();
                 }
                 catch (CircularException<IRTypeNode> e)
                 {
-                    var circle = e.CircularDependancies;
+                    var circle = e.CircularDependencies;
                     var circleString = string.Join("\n", circle.Select(x => x.FullName));
                     Program.Log.Debug("\n" + circleString);
 
@@ -102,12 +102,12 @@ namespace protoextractor.processing
 
                 try
                 {
-                    // Find and Resolve NAMESPACE circular dependancies..
+                    // Find and Resolve NAMESPACE circular dependencies..
                     CreateTopologicalNSTree();
                 }
                 catch (CircularException<IRNamespace> e)
                 {
-                    var circle = e.CircularDependancies;
+                    var circle = e.CircularDependencies;
                     var circleString = string.Join("\n", circle.Select(x => x.FullName));
                     Program.Log.Debug("\n" + circleString);
 
@@ -145,19 +145,19 @@ namespace protoextractor.processing
             }
 
             Console.WriteLine();
-            Program.Log.Info("Resolved all circular dependancies within {0} runs.", Runs);
+            Program.Log.Info("Resolved all circular dependencies within {0} runs.", Runs);
 
             Program.Log.CloseBlock();
             return _program;
         }
 
-        // Generate and store dependancies between namespaces AND types.
-        private void CreateDependancyGraph()
+        // Generate and store dependencies between namespaces AND types.
+        private void CreateDependencyGraph()
         {
             // Clear all known data.
             _TypeNSMapper.Clear();
-            _NSDependancies.Clear();
-            _TypeDependancies.Clear();
+            _NSDependencies.Clear();
+            _TypeDependencies.Clear();
 
             var orderedNamespaces = _program.Namespaces.OrderBy(ns => ns.FullName);
 
@@ -165,7 +165,7 @@ namespace protoextractor.processing
             {
                 // Set for all namespaces referenced by this namespace.
                 var nsDepSet = new HashSet<IRNamespace>();
-                _NSDependancies[ns] = nsDepSet;
+                _NSDependencies[ns] = nsDepSet;
 
                 // For each reference property, find the parent namespace and store that one.
                 foreach (var irClass in ns.Classes)
@@ -175,7 +175,7 @@ namespace protoextractor.processing
 
                     // Set for all types referenced by this specific type.
                     var typeDepSet = new HashSet<IRTypeNode>();
-                    _TypeDependancies[irClass] = typeDepSet;
+                    _TypeDependencies[irClass] = typeDepSet;
 
                     foreach (var property in irClass.Properties)
                     {
@@ -193,7 +193,7 @@ namespace protoextractor.processing
                             }
                             var refParentNS = refParent as IRNamespace;
 
-                            // Store the dependancy between current namespace and the referenced one.
+                            // Store the dependency between current namespace and the referenced one.
                             nsDepSet.Add(refParentNS);
                             // Store the reference between current type and the referenced one.
                             typeDepSet.Add(refType);
@@ -206,21 +206,21 @@ namespace protoextractor.processing
                 foreach (var irEnum in ns.Enums)
                 {
                     _TypeNSMapper[irEnum] = ns;
-                    _TypeDependancies[irEnum] = new HashSet<IRTypeNode>();
+                    _TypeDependencies[irEnum] = new HashSet<IRTypeNode>();
                 }
 
-                // Remove our own namespace as dependancy.
+                // Remove our own namespace as dependency.
                 nsDepSet.Remove(ns);
             }
         }
 
         #region TYPE_RESOLVE
-        // Creates a topological tree from the dependancies of the specified type.
+        // Creates a topological tree from the dependencies of the specified type.
         private List<IRTypeNode> CreateTopologicalTypeTree()
         {
             // List of all visited types.
             List<IRTypeNode> visited = new List<IRTypeNode>();
-            // Topological view of the dependant types.
+            // Topological view of the dependent types.
             List<IRTypeNode> topologicalOrder = new List<IRTypeNode>();
 
             // Meta state of each type.
@@ -228,10 +228,10 @@ namespace protoextractor.processing
 
 
             // Collection of all IR Types.
-            var allTypes = _TypeDependancies.Keys.ToList();
+            var allTypes = _TypeDependencies.Keys.ToList();
 
             // Mark all nodes ALIVE, this means they still need to be processed.
-            // The main resource of this algorithm is the '_TypeDependancies' variable.
+            // The main resource of this algorithm is the '_TypeDependencies' variable.
             foreach (var type in allTypes)
             {
                 nodeState[type] = NODE_STATE.ALIVE;
@@ -280,7 +280,7 @@ namespace protoextractor.processing
             // Visit this node.
             visitedNodes.Add(targetNode);
 
-            // An undead state means we hit a circular dependancy!
+            // An undead state means we hit a circular dependency!
             if (state == NODE_STATE.UNDEAD)
             {
                 // References from Parent node to child (nested) node are allowed.
@@ -301,7 +301,7 @@ namespace protoextractor.processing
                 var circleLength = visitedNodes.Count() - circleEntryIDx;
                 var circle = visitedNodes.GetRange(circleEntryIDx, circleLength);
 
-                // If each type belongs to the SAME namespace, there is no circular dependancy!
+                // If each type belongs to the SAME namespace, there is no circular dependency!
                 if (AllTypesInSameNamespace(circle))
                 {
                     return;
@@ -312,9 +312,9 @@ namespace protoextractor.processing
 
             // Node is ALIVE and will be processed.
             nodeState[targetNode] = NODE_STATE.UNDEAD;
-            var dependancies = _TypeDependancies[targetNode];
-            // Visit all dependancies of this node.
-            foreach (var dep in dependancies)
+            var dependencies = _TypeDependencies[targetNode];
+            // Visit all dependencies of this node.
+            foreach (var dep in dependencies)
             {
                 // Send in a copy of visited nodes so it doesn't litter the list
                 // with non circular types.
@@ -328,14 +328,14 @@ namespace protoextractor.processing
         private void ResolveCircularTypes(List<IRTypeNode> circle)
         {
             // All unique types within the given list are moved together into a seperate
-            // namespace, because that's the only way to solve these kind of circular dependancies.
+            // namespace, because that's the only way to solve these kind of circular dependencies.
             // This list will NEVER contain enums!
             IEnumerable<IRClass> distincttypes = circle.Distinct().Cast<IRClass>();
 
             // TODO: Better naming algorithm?! (Longest commong substring)
             // The longest substring between the fullnames of each type's namespace.
             var allTypeNamespaceNames = circle.Select(type => _TypeNSMapper[type].FullName).ToList();
-            string newNSName = DependancyUtil.LongestmatchingSubstring(allTypeNamespaceNames).Trim('.');
+            string newNSName = DependencyUtil.LongestmatchingSubstring(allTypeNamespaceNames).Trim('.');
             // Also construct a shortname from the new namespace fullname
             string newNSShortName = newNSName.Substring(newNSName.LastIndexOf('.') + 1);
 
@@ -382,7 +382,7 @@ namespace protoextractor.processing
                 nodeState[ns] = NODE_STATE.ALIVE;
             }
 
-            // Topological walk the dependancy graph.
+            // Topological walk the dependency graph.
             foreach (var ns in allNamespaces)
             {
                 NSTopologicalVisit(ns, topologicalOrder, nodeState, visited);
@@ -424,12 +424,12 @@ namespace protoextractor.processing
 
             // Node is ALIVE and will be processed.
             nodeState[node] = NODE_STATE.UNDEAD;
-            // Find all dependancies of the current namespace.
-            var dependancies = _NSDependancies[node];
-            // Visit each namespace dependancy.
-            foreach (var dep in dependancies)
+            // Find all dependencies of the current namespace.
+            var dependencies = _NSDependencies[node];
+            // Visit each namespace dependency.
+            foreach (var dep in dependencies)
             {
-                // Send a copy of visited nodes to not litter the list of circular dependant nodes
+                // Send a copy of visited nodes to not litter the list of circular dependent nodes
                 // when we reach an undead node.
                 NSTopologicalVisit(dep, topologicalOrder, nodeState, visitedNodes.ToList());
             }
@@ -444,10 +444,10 @@ namespace protoextractor.processing
         {
             if (circle.Count() > 3)
             {
-                throw new Exception("This method is not created for solving big circular dependancies!");
+                throw new Exception("This method is not created for solving big circular dependencies!");
             }
 
-            // Suppose there are ONLY DIRECT CIRCULAR DEPENDANCIES.
+            // Suppose there are ONLY DIRECT CIRCULAR DEPENDENCIES.
             // This means one namespace points to another which points to the first!
             var nsOne = circle[0];
             var nsTwo = circle[1];
@@ -483,8 +483,8 @@ namespace protoextractor.processing
             List<IRClass> returnValue = new List<IRClass>();
             foreach (var ilClass in source.Classes) // Enums cannot reference other types!
             {
-                // Loop each dependancy for the selected type.
-                var deps = _TypeDependancies[ilClass];
+                // Loop each dependency for the selected type.
+                var deps = _TypeDependencies[ilClass];
                 foreach (var dep in deps)
                 {
                     // Find and test the parent namespace of the reference.
@@ -509,7 +509,7 @@ namespace protoextractor.processing
             List<string> nsNames = new List<string>();
             nsNames.Add(nsOne.FullName);
             nsNames.Add(nsTwo.FullName);
-            var commonSubstr = DependancyUtil.LongestmatchingSubstring(nsNames);
+            var commonSubstr = DependencyUtil.LongestmatchingSubstring(nsNames);
             // Both namespaces share a hypothetical parent namespace.
             if (commonSubstr.Count() > 0)
             {
@@ -517,10 +517,10 @@ namespace protoextractor.processing
             }
 
             // If there is no shared namespace, resort to amount of imports both types do.
-            var depsNSOne = _NSDependancies[nsOne].Count();
-            var depsNSTwo = _NSDependancies[nsTwo].Count();
-            // NSTwo has less dependancies, so it's considered closer to the root.
-            // This is a vague heuristic, ideally the one closer to the root has NO dependancies.
+            var depsNSOne = _NSDependencies[nsOne].Count();
+            var depsNSTwo = _NSDependencies[nsTwo].Count();
+            // NSTwo has less dependencies, so it's considered closer to the root.
+            // This is a vague heuristic, ideally the one closer to the root has NO dependencies.
             if (depsNSTwo < depsNSOne)
             {
                 return 1;
@@ -597,21 +597,21 @@ namespace protoextractor.processing
 
     public class CircularException<T> : Exception
     {
-        // List of namespaces that are part of a circular dependancy.
+        // List of namespaces that are part of a circular dependency.
         // This list must start AND end with the same element!
-        public List<T> CircularDependancies
+        public List<T> CircularDependencies
         {
             get;
         }
 
         public CircularException(List<T> circ)
         {
-            CircularDependancies = circ;
+            CircularDependencies = circ;
         }
 
         public CircularException(List<T> circ, Exception inner) : base("", inner)
         {
-            CircularDependancies = circ;
+            CircularDependencies = circ;
         }
 
         public CircularException(string message)
