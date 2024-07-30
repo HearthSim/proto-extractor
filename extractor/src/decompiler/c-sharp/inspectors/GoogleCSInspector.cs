@@ -1,4 +1,4 @@
-﻿using Mono.Cecil;
+using Mono.Cecil;
 using protoextractor.IR;
 using System;
 using System.Collections.Generic;
@@ -43,7 +43,7 @@ namespace protoextractor.decompiler.c_sharp.inspectors
 		public static void SerializeOnCall(CallInfo info, List<byte> writtenBytes,
 										   List<IRClassProperty> properties)
 		{
-			if (!info.Method.Name.StartsWith("Write") || info.Method.Name.StartsWith("WriteTo"))
+			if (info.Method.Name.StartsWith("Write") || info.Method.Name.StartsWith("WriteTo"))
 			{
 				// We are in no relevant method.
 				return;
